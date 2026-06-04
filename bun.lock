@@ -26,6 +26,7 @@
     "packages/api": {
       "name": "@bdd-revision/api",
       "dependencies": {
+        "@bdd-revision/db": "workspace:*",
         "@trpc/server": "latest",
         "zod": "latest",
       },

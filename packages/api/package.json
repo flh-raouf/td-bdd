@@ -4,10 +4,11 @@
   "type": "module",
   "scripts": {
     "dev": "bun --watch src/index.ts",
-    "build": "tsc -p tsconfig.json",
+    "build": "bun build src/index.ts --outdir dist --target bun",
     "typecheck": "tsc -p tsconfig.json --pretty false"
   },
   "dependencies": {
+    "@bdd-revision/db": "workspace:*",
     "@trpc/server": "latest",
     "zod": "latest"
   },
