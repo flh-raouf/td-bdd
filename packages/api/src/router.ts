@@ -6,6 +6,13 @@ import type {
   RowDataPacket,
 } from "mysql2/promise";
 import { z } from "zod";
+import {
+  getExercise,
+  getExerciseSummaries,
+  getExercisesByPart,
+  getNextExerciseId,
+  getPreviousExerciseId,
+} from "./exercises";
 
 const t = initTRPC.create();
 
@@ -32,6 +39,7 @@ const readOnlyKeywords = new Set([
   "DESCRIBE",
   "DESC",
   "EXPLAIN",
+  "WITH",
 ]);
 const dmlKeywords = new Set(["INSERT", "UPDATE", "DELETE"]);
 const schemaChangeKeywords = new Set(["ALTER", "CREATE"]);
@@ -329,8 +337,32 @@ const queryRouter = t.router({
     ),
 });
 
+const exerciseIdSchema = z.string().min(1);
+
+const exercisesRouter = t.router({
+  list: t.procedure.query(() => getExerciseSummaries()),
+  byPart: t.procedure.query(() => getExercisesByPart()),
+  get: t.procedure.input(exerciseIdSchema).query(({ input }) => {
+    const exercise = getExercise(input);
+
+    if (!exercise) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: `Exercise ${input} does not exist.`,
+      });
+    }
+
+    return {
+      ...exercise,
+      nextExerciseId: getNextExerciseId(input),
+      previousExerciseId: getPreviousExerciseId(input),
+    };
+  }),
+});
+
 export const appRouter = t.router({
   health: t.procedure.query(() => ({ status: "ok" as const })),
+  exercises: exercisesRouter,
   schema: schemaRouter,
   query: queryRouter,
 });
