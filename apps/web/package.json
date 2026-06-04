@@ -8,12 +8,28 @@
     "typecheck": "tsc -b --pretty false"
   },
   "dependencies": {
+    "@bdd-revision/api": "workspace:*",
+    "@radix-ui/react-dialog": "latest",
+    "@radix-ui/react-scroll-area": "latest",
+    "@radix-ui/react-separator": "latest",
+    "@radix-ui/react-slot": "latest",
+    "@tanstack/react-query": "latest",
+    "@tanstack/react-router": "latest",
+    "@trpc/client": "latest",
+    "@trpc/react-query": "latest",
     "@vitejs/plugin-react": "latest",
-    "vite": "latest",
+    "class-variance-authority": "latest",
+    "clsx": "latest",
+    "lucide-react": "latest",
     "react": "latest",
-    "react-dom": "latest"
+    "react-dom": "latest",
+    "tailwind-merge": "latest",
+    "tailwindcss": "latest",
+    "vite": "latest"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "latest",
+    "@types/bun": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
     "typescript": "latest"
