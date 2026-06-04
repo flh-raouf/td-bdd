@@ -60,6 +60,13 @@ export const tourSteps: TourStep[] = [
     position: "top",
   },
   {
+    target: "[data-tour=github]",
+    title: "Enjoying BDD Revision?",
+    content:
+      "If this app helps you with your revisions, a star on GitHub would mean a lot! It helps others discover the project too.",
+    position: "bottom",
+  },
+  {
     target: "[data-tour=welcome]",
     title: "You're Ready!",
     content:
