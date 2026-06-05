@@ -2,7 +2,7 @@
 select *from Feature;
 select *from plan;
 select *from Uses;
-select *from sign_up;
+select *from SIGNUP;
 select sl.phoneNumber,cm.first_name,sl.operator 
 from customer cm 
 natural join 
@@ -18,7 +18,7 @@ select count(phoneNumber) as NumberSubsriber from Subscriber_Line group by opera
 
 select operator,count(phoneNumber) as NumberSubsriber from Subscriber_Line group by operator; 
 select serviceName from service where not exists(
-select serviceId from uses natural join service
+select serviceId from USES natural join service
 );
 SELECT s.serviceId, s.serviceName
 FROM Service s
@@ -31,12 +31,12 @@ left join Uses u on s.serviceId=u.serviceId
 where u.serviceId is NULL ;
 select operator , count(phoneNumber) as NumberSubscriber from Subscriber_line group by operator;
 select serviceName from service where serviceName not in  (
-select  distinct serviceName from uses natural join service 
+select  distinct serviceName from USES natural join service 
 );
 select serviceName from service s where not exists (
-select 1 from uses u where u.serviceId=s.serviceId
+select 1 from USES u where u.serviceId=s.serviceId
 );
-select  distinct serviceName from uses natural join service  ;
+select  distinct serviceName from USES natural join service  ;
 -- 1.4 
 select first_name,lastname from customer where code_customer not in (
 select distinct code_customer from Subscriber_line
@@ -59,13 +59,13 @@ INSERT INTO Customer (code_customer, first_name, wilaya, lastname) VALUES
 -- part2 
 -- 2.1  
 select distinct c.first_name,c.lastname,sl.phoneNumber ,count(su.idPlan) as nombrePlan 
-from sign_up su join subscriber_line sl on su.phoneNumber = sl.phoneNumber 
+from SIGNUP su join subscriber_line sl on su.phoneNumber = sl.phoneNumber 
 join customer c on c.code_customer=sl.code_customer
 group by sl.phoneNumber
 having  nombrePlan>=2;
 
 select distinct c.first_name,c.lastName ,sl.phoneNumber,count( distinct us.idPlan) as nombrePlan   
-from subscriber_line sl join sign_up us on sl.phoneNumber=us.phoneNumber
+from subscriber_line sl join SIGNUP us on sl.phoneNumber=us.phoneNumber
 join customer c on c.code_customer=sl.code_customer
 group by sl.phoneNumber 
 having nombrePlan>=2;
@@ -74,13 +74,13 @@ select s.serviceName,sl.operator ,
 sum(us.callDuration)/60 as totalCallDuration ,
 sum(us.dataBytes)/power(1024,3) as totalDataByte,
 sum(us.cost) as totalCost
-from subscriber_line sl natural join uses us 
+from subscriber_line sl natural join USES us 
 natural join service s 
 group by s.serviceId,sl.operator
 ;
 select c.first_name,c.lastName,sl.phoneNumber 
 from subscriber_line sl natural join customer c
-natural join sign_up sp
+natural join SIGNUP sp
 where sp.end_date is not NULL ; 
 
 select p.plan_name,count(f.featureId) as nombreFeature from 
@@ -94,7 +94,7 @@ select sl.operator,s.serviceName,
 sum(us.callDuration)/3600 as totalHour,
 sum(us.dataBytes)/power(2,30) as totalData,
 sum(us.cost) as totalCost
-from uses us join subscriber_line sl on us.phoneNumber=sl.phoneNumber
+from USES us join subscriber_line sl on us.phoneNumber=sl.phoneNumber
 join service s on us.serviceId=s.serviceId
 group by s.serviceId,sl.operator;
 
@@ -103,7 +103,7 @@ group by s.serviceId,sl.operator;
 -- 2.3
 select c.first_name,c.lastName,sl.phoneNumber 
 from customer c natural join subscriber_line sl 
-natural join sign_up sp
+natural join SIGNUP sp
 where sp.end_date is not null;
 -- 2.4 
 select plan_name,count(featureId) as NumberFeature from 
@@ -115,7 +115,7 @@ order by NumberFeature desc;
 select c.first_name,c.lastName,sl.phoneNumber 
 from customer c join subscriber_line sl on sl.code_customer=c.code_customer
 where sl.phoneNumber in (
-select phoneNumber from uses 
+select phoneNumber from USES 
 group by phoneNumber
 having  count(distinct serviceId)=(select count(*) from service) 
 );
@@ -125,7 +125,7 @@ from customer c join subscriber_line sl on sl.code_customer=c.code_customer
 where not exists (
 select 1 from service s 
 where not exists (
-select 1 from uses us 
+select 1 from USES us 
 where s.serviceId=us.serviceId
 and us.phoneNumber=sl.phoneNumber
 )
@@ -139,22 +139,22 @@ SELECT
     s.serviceName,
     SUM(us.cost) AS total_revenue
 FROM service s
-JOIN uses us ON s.serviceId = us.serviceId
+JOIN USES us ON s.serviceId = us.serviceId
 GROUP BY s.serviceId, s.serviceName
 HAVING SUM(us.cost) = (
     SELECT MAX(total_revenue)
     FROM (
         SELECT SUM(cost) AS total_revenue
-        FROM uses
+        FROM USES
         GROUP BY serviceId
     ) AS revenue_per_service
 );
 select s.serviceId,s.serviceName,sum(us.cost) as total_revenue 
-from service s join uses us on s.serviceId=us.serviceId
+from service s join USES us on s.serviceId=us.serviceId
 group by s.serviceId 
 having sum(us.cost)=(
 select max(total_revenue) from (
-select sum(cost) as total_revenue from uses group by serviceId 
+select sum(cost) as total_revenue from USES group by serviceId 
 ) as revenue
 );
 
@@ -163,7 +163,7 @@ FROM subscriber_line sl
 JOIN customer c ON c.code_customer = sl.code_customer
 WHERE sl.phoneNumber NOT IN (
     SELECT DISTINCT phoneNumber 
-    FROM sign_up 
+    FROM SIGNUP 
     WHERE end_date IS NULL
 );
 select plan_name , count(featureId) as nombreFeature from 
@@ -176,34 +176,34 @@ FROM subscriber_line sl
 JOIN customer c ON sl.code_customer = c.code_customer
 WHERE (
     SELECT COUNT(DISTINCT serviceId)
-    FROM uses u
+    FROM USES u
     WHERE u.phoneNumber = sl.phoneNumber
 ) = (
     SELECT COUNT(*) 
     FROM service
 );
 SELECT sl.phoneNumber, c.first_name, c.lastname
-FROM uses u
+FROM USES u
 JOIN subscriber_line sl ON u.phoneNumber = sl.phoneNumber
 JOIN customer c ON sl.code_customer = c.code_customer
 GROUP BY sl.phoneNumber, c.first_name, c.lastname
 HAVING COUNT(DISTINCT u.serviceId) = (SELECT COUNT(*) FROM service);
 select s.serviceId,s.serviceName , maxtotalRevenue from 
-service s join uses us on s.serviceId=us.serviceId where maxtotalRevenue=(select max(totalRevenue) as maxtotalRevenue from (
-select sum(cost) from  uses
+service s join USES us on s.serviceId=us.serviceId where maxtotalRevenue=(select max(totalRevenue) as maxtotalRevenue from (
+select sum(cost) from  USES
 ));
 SELECT 
     s.serviceId,
     s.serviceName,
     SUM(us.cost) AS total_revenue
 FROM service s
-JOIN uses us ON s.serviceId = us.serviceId
+JOIN USES us ON s.serviceId = us.serviceId
 GROUP BY s.serviceId, s.serviceName
 HAVING SUM(us.cost) = (
     SELECT MAX(total_revenue)
     FROM (
         SELECT SUM(cost) AS total_revenue
-        FROM uses
+        FROM USES
         GROUP BY serviceId
     ) AS revenue_per_service
 );
@@ -215,7 +215,7 @@ SELECT
     COALESCE(SUM(us.callDuration), 0) AS total_duration
 FROM customer c
 JOIN subscriber_line sl ON c.code_customer = sl.code_customer
-LEFT JOIN uses us ON us.phoneNumber = sl.phoneNumber 
+LEFT JOIN USES us ON us.phoneNumber = sl.phoneNumber 
     AND us.serviceId = 'SVC001'  -- Uniquement les appels
 GROUP BY sl.phoneNumber, c.first_name, c.lastname;
 
@@ -223,7 +223,7 @@ GROUP BY sl.phoneNumber, c.first_name, c.lastname;
 SELECT MAX(total_duration) AS max_duration
 FROM (
     SELECT COALESCE(SUM(us.callDuration), 0) AS total_duration
-    FROM uses us
+    FROM USES us
     WHERE serviceId = 'SVC001'
     GROUP BY phoneNumber
 ) AS durations;
@@ -236,14 +236,14 @@ SELECT
     COALESCE(SUM(us.callDuration), 0) AS total_duration
 FROM customer c
 JOIN subscriber_line sl ON c.code_customer = sl.code_customer
-LEFT JOIN uses us ON us.phoneNumber = sl.phoneNumber 
+LEFT JOIN USES us ON us.phoneNumber = sl.phoneNumber 
     AND us.serviceId = 'SVC001'
 GROUP BY sl.phoneNumber
 HAVING COALESCE(SUM(us.callDuration), 0) = (
     SELECT MAX(total_duration)
     FROM (
         SELECT COALESCE(SUM(callDuration), 0) AS total_duration
-        FROM uses
+        FROM USES
         WHERE serviceId = 'SVC001'
         GROUP BY phoneNumber
     ) AS durations
@@ -251,10 +251,10 @@ HAVING COALESCE(SUM(us.callDuration), 0) = (
 -- 3.3 
 select c.first_name,c.lastName,sl.phoneNumber,sum(us.callDuration) as totalCallDuration 
 from customer c join subscriber_line sl on c.code_customer=sl.code_customer
-join uses us on us.phoneNumber=sl.phoneNumber
+join USES us on us.phoneNumber=sl.phoneNumber
 group by sl.phoneNumber 
 having sum(us.callDuration)=(select max(totalCallDuration) from(
-select sum(callDuration) as totalCallDuration  from uses 
+select sum(callDuration) as totalCallDuration  from USES 
 group by phoneNumber
 )as totalDuration);
 
@@ -262,11 +262,11 @@ group by phoneNumber
 -- 3.3 superieur à tout dans le cas de null , on va trouver une table vide 
 select c.first_name,c.lastName,sl.phoneNumber,sum(us.callDuration) as totalCallDuration
 from customer c join subscriber_line sl on c.code_customer=sl.code_customer
-join uses us on us.phoneNumber=sl.phoneNumber 
+join USES us on us.phoneNumber=sl.phoneNumber 
 where us.serviceId=(select serviceId from service where service_name='Call')
 group by c.first_name,c.lastName,sl.phoneNumber 
 having totalCallDuration>All(
-select sum(u2.callDuration) as totalCallDuration from uses u2
+select sum(u2.callDuration) as totalCallDuration from USES u2
 
 where u2.serviceId in (select serviceId from service where service_name='Call')
 and u2.phoneNumber<>us.phoneNumber
@@ -279,36 +279,36 @@ group by u2.phoneNumber
 -- le inner join es le meme que le join 
 select c.first_name,c.lastName,sl.phoneNumber,sum(us.dataBytes)as totalDataConsp 
 from customer c join subscriber_line sl on c.code_customer=sl.code_customer 
-join uses us on us.phoneNumber=sl.phoneNumber
+join USES us on us.phoneNumber=sl.phoneNumber
 group by sc.first_name,c.lastName,l.phoneNumber 
 having sum(us.dataBytes)>(select avg(totalDataConsp) from (
-select sum(dataBytes) as totalDataConsp from uses 
+select sum(dataBytes) as totalDataConsp from USES 
 group by phoneNumber
 ) averageConsp);
 
-alter table uses add column isCall boolean null;
-SELECT * from uses;
-alter table uses modify column isCall boolean not null;
-SELECT * from uses;
+alter table USES add column isCall boolean null;
+SELECT * from USES;
+alter table USES modify column isCall boolean not null;
+SELECT * from USES;
 
-update uses us 
+update USES us 
 join service s on s.serviceId=us.serviceId 
 set us.isCall=True
 where s.serviceName='Call';
-UPDATE uses u
+UPDATE USES u
 JOIN service s ON u.serviceId = s.serviceId
 SET u.isCall = TRUE
 WHERE s.serviceName = 'Calls';
 SET SQL_SAFE_UPDATES = 0;
-UPDATE uses us 
+UPDATE USES us 
 JOIN service s ON s.serviceId=us.serviceId 
 SET us.isCall=FALSE 
 WHERE s.serviceName!='Call' or s.serviceName is Null;
-update uses set isCall=case 
+update USES set isCall=case 
 						when serviceId='SVC001' then 1 
                         else 0 
                         end ;
-update uses set isCall =case 
+update USES set isCall =case 
 						when serviceId=(select serviceId from service where serviceName='Calls') then 1
                         else 0 
                         end ;

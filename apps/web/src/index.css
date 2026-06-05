@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:is(.dark *));
+
 @theme {
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
   --color-background: #0f1117;
@@ -41,4 +43,48 @@ body {
 
 .cm-editor .cm-cursor {
   border-left-color: #e1e4e8;
+}
+
+[data-theme="light"] {
+  --color-background: #ffffff;
+  --color-foreground: #1a1a2e;
+  --color-muted: #6b7280;
+  --color-muted-foreground: #9ca3af;
+  --color-border: #e5e7eb;
+  --color-sidebar: #f9fafb;
+  --color-sidebar-border: #e5e7eb;
+  --color-sidebar-active: #e5e7eb;
+  --color-sidebar-hover: #f3f4f6;
+  --color-accent: #2563eb;
+  --color-accent-foreground: #ffffff;
+  --color-success: #16a34a;
+  --color-destructive: #dc2626;
+  --color-card: #f9fafb;
+  --color-card-foreground: #1a1a2e;
+  --color-ring: #2563eb;
+}
+
+[data-theme="light"] .cm-editor .cm-cursor {
+  border-left-color: #1a1a2e;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+@theme inline {
+  --animate-shine: shine var(--duration) infinite linear;
+  @keyframes shine {
+    0% {
+      background-position: 0% 0%;
+    }
+    50% {
+      background-position: 100% 100%;
+    }
+    to {
+      background-position: 0% 0%;
+    }
+  }
 }

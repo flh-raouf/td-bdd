@@ -23,7 +23,9 @@
       "!node_modules",
       "!**/dist",
       "!.turbo",
-      "!bun.lock"
+      "!bun.lock",
+      "!apps/web/src/components/ui/lens.tsx",
+      "!apps/web/src/components/ui/animated-theme-toggler.tsx"
     ]
   }
 }

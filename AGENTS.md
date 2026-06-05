@@ -34,7 +34,7 @@ When writing or reviewing React/TypeScript code in this project, **always** load
 ## Architecture Rules
 
 - All DB access goes through `@bdd-revision/db` (pool, Drizzle instance, seed helpers). Never create a second mysql2 connection.
-- The `USAGE` table is a MySQL reserved word — always backtick: `` `USAGE` ``.
+- The usage-events table is named USES, so students do not need backticks for it.
 - API procedures are in `packages/api/src/router.ts`. Validate user SQL with `classifySql()` and `runQuery()`.
 - Exercise definitions in `packages/api/src/exercises.ts` — 26 entries with hints, solutions, DDL verification queries.
 - Frontend state shared via React Context (`ProgressProvider` in `use-progress.ts`). Do not duplicate localStorage reads.

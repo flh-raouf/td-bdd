@@ -78,7 +78,7 @@ const serviceTableSql = `CREATE TABLE SERVICE (
     serviceName VARCHAR(150) NOT NULL
 );`;
 
-const usageTableSql = `CREATE TABLE \`USAGE\` (
+const usesTableSql = `CREATE TABLE USES (
     phoneNumber VARCHAR(20) NOT NULL,
     serviceId INT NOT NULL,
     usageDateTime DATETIME NOT NULL,
@@ -86,12 +86,12 @@ const usageTableSql = `CREATE TABLE \`USAGE\` (
     dataBytes FLOAT DEFAULT 0,
     amount DECIMAL(10,2) DEFAULT 0,
     PRIMARY KEY (phoneNumber, serviceId, usageDateTime),
-    CONSTRAINT fk_usage_subscriber
+    CONSTRAINT fk_uses_subscriber
         FOREIGN KEY (phoneNumber)
         REFERENCES SUBSCRIBER(phoneNumber)
         ON UPDATE CASCADE
         ON DELETE CASCADE,
-    CONSTRAINT fk_usage_service
+    CONSTRAINT fk_uses_service
         FOREIGN KEY (serviceId)
         REFERENCES SERVICE(serviceId)
         ON UPDATE CASCADE
@@ -115,7 +115,7 @@ const featureTableSql = `CREATE TABLE FEATURE (
         ON DELETE CASCADE
 );`;
 
-const subscriptionTableSql = `CREATE TABLE SUBSCRIPTION (
+const signupTableSql = `CREATE TABLE SIGNUP (
     phoneNumber VARCHAR(20) NOT NULL,
     planId INT NOT NULL,
     startDate DATE NOT NULL,
@@ -123,12 +123,12 @@ const subscriptionTableSql = `CREATE TABLE SUBSCRIPTION (
     amount DECIMAL(10,2) DEFAULT 0,
     PRIMARY KEY (phoneNumber, planId, startDate),
     CONSTRAINT chk_dates CHECK (startDate < endDate),
-    CONSTRAINT fk_subscription_subscriber
+    CONSTRAINT fk_signup_subscriber
         FOREIGN KEY (phoneNumber)
         REFERENCES SUBSCRIBER(phoneNumber)
         ON UPDATE CASCADE
         ON DELETE CASCADE,
-    CONSTRAINT fk_subscription_plan
+    CONSTRAINT fk_signup_plan
         FOREIGN KEY (planId)
         REFERENCES PLAN(planId)
         ON UPDATE CASCADE
@@ -141,10 +141,10 @@ const fullCreationScript = [
   subscriberTableSql,
   rechargeTableSql,
   serviceTableSql,
-  usageTableSql,
+  usesTableSql,
   planTableSql,
   featureTableSql,
-  subscriptionTableSql,
+  signupTableSql,
 ].join("\n\n");
 
 const tableExistsVerification = (tableName: string): VerificationQuery => ({
@@ -273,7 +273,7 @@ export const exercises = [
       "Create the SERVICE table with an identifier and a required service name.",
     type: "ddl",
     hints: [
-      "SERVICE is a lookup table, so it can be created before USAGE.",
+      "SERVICE is a lookup table, so it can be created before USES.",
       "Use serviceId as the primary key and make it auto-increment.",
       "serviceName should be NOT NULL because every usage row will point to a named service.",
     ],
@@ -285,18 +285,18 @@ export const exercises = [
     id: "1.5",
     part: "Exercise 1 - Database Creation Script",
     order: 5,
-    title: "Create USAGE table",
+    title: "Create USES table",
     description:
-      "Create the USAGE table. A usage event is identified by phoneNumber, serviceId, and usageDateTime. Use backticks around `USAGE` because it is a MySQL reserved word.",
+      "Create the USES table. A usage event is identified by phoneNumber, serviceId, and usageDateTime.",
     type: "ddl",
     hints: [
-      "`USAGE` records a subscriber using a service at a specific date and time.",
+      "USES records a subscriber using a service at a specific date and time.",
       "Use a composite primary key on phoneNumber, serviceId, and usageDateTime to identify one usage event.",
-      "Because USAGE is reserved in MySQL, wrap the table name in backticks everywhere: `USAGE`.",
+      "The table is named USES so students can write it normally without backticks.",
     ],
-    solutionQueries: [usageTableSql],
-    verificationQueries: tableVerifications("USAGE", 6, 3, 2),
-    initialCode: "CREATE TABLE `USAGE` (\n  \n);",
+    solutionQueries: [usesTableSql],
+    verificationQueries: tableVerifications("USES", 6, 3, 2),
+    initialCode: "CREATE TABLE USES (\n  \n);",
   },
   {
     id: "1.6",
@@ -307,7 +307,7 @@ export const exercises = [
       "Create the PLAN table with a plan name and non-negative monthly rate.",
     type: "ddl",
     hints: [
-      "PLAN is independent and can be created before FEATURE and SUBSCRIPTION.",
+      "PLAN is independent and can be created before FEATURE and SIGNUP.",
       "Use planId as the AUTO_INCREMENT primary key and keep planName required.",
       "monthlyRate is a price-like value, so add a constraint that prevents negative rates.",
     ],
@@ -335,18 +335,18 @@ export const exercises = [
     id: "1.8",
     part: "Exercise 1 - Database Creation Script",
     order: 8,
-    title: "Create SUBSCRIPTION table",
+    title: "Create SIGNUP table",
     description:
-      "Create the SUBSCRIPTION table. A subscription links a subscriber line to a plan for a date range.",
+      "Create the SIGNUP table. A signup links a subscriber line to a plan for a date range.",
     type: "ddl",
     hints: [
-      "SUBSCRIPTION is an association table between subscriber lines and plans.",
-      "Use a composite primary key with phoneNumber, planId, and startDate so a line can subscribe to the same plan at different periods.",
+      "SIGNUP is an association table between subscriber lines and plans.",
+      "Use a composite primary key with phoneNumber, planId, and startDate so a line can sign up for the same plan at different periods.",
       "Reference both SUBSCRIBER and PLAN, and add a date constraint so startDate comes before endDate.",
     ],
-    solutionQueries: [subscriptionTableSql],
-    verificationQueries: tableVerifications("SUBSCRIPTION", 5, 3, 2),
-    initialCode: "CREATE TABLE SUBSCRIPTION (\n  \n);",
+    solutionQueries: [signupTableSql],
+    verificationQueries: tableVerifications("SIGNUP", 5, 3, 2),
+    initialCode: "CREATE TABLE SIGNUP (\n  \n);",
   },
   {
     id: "1.9",
@@ -358,7 +358,7 @@ export const exercises = [
     type: "ddl",
     hints: [
       "Start with tables that have no foreign keys: CUSTOMER, SERVICE, and PLAN.",
-      "Then create dependent tables in an order that respects references: SUBSCRIBER, RECHARGE, FEATURE, `USAGE`, and SUBSCRIPTION.",
+      "Then create dependent tables in an order that respects references: SUBSCRIBER, RECHARGE, FEATURE, USES, and SIGNUP.",
       "Check every relationship from the ER diagram: primary keys, foreign keys, composite keys, and constraints such as positive amounts and valid date ranges.",
     ],
     solutionQueries: [fullCreationScript],
@@ -367,14 +367,14 @@ export const exercises = [
         sql: `SELECT COUNT(*) AS tableCount
 FROM INFORMATION_SCHEMA.TABLES
 WHERE TABLE_SCHEMA = DATABASE()
-  AND TABLE_NAME IN ('CUSTOMER', 'SUBSCRIBER', 'RECHARGE', 'SERVICE', 'USAGE', 'PLAN', 'FEATURE', 'SUBSCRIPTION')`,
+  AND TABLE_NAME IN ('CUSTOMER', 'SUBSCRIBER', 'RECHARGE', 'SERVICE', 'USES', 'PLAN', 'FEATURE', 'SIGNUP')`,
         expectedOutput: {
           columns: ["tableCount"],
           rows: [{ tableCount: 8 }],
         },
       },
-      ...tableVerifications("SUBSCRIPTION", 5, 3, 2),
-      ...tableVerifications("USAGE", 6, 3, 2),
+      ...tableVerifications("SIGNUP", 5, 3, 2),
+      ...tableVerifications("USES", 6, 3, 2),
     ],
     initialCode: "CREATE DATABASE IF NOT EXISTS DZTelecom;\nUSE DZTelecom;\n\n",
   },
@@ -413,15 +413,16 @@ WHERE s.lineStatus = 'Active'`,
     type: "dql",
     hints: [
       "Both columns you need are in PLAN.",
-      "First think: what is the largest monthlyRate in the table?",
-      "Use a subquery with MAX(monthlyRate), then return every plan whose monthlyRate equals that value.",
+      "Do not select MAX(monthlyRate) directly with planName; that gives an aggregate value, not the monthlyRate column from the winning row.",
+      "Use MAX(monthlyRate) in a subquery inside WHERE, then return the plan row whose monthlyRate equals that maximum.",
     ],
     solutionQueries: [
       `SELECT planName, monthlyRate
 FROM PLAN
 WHERE monthlyRate = (SELECT MAX(monthlyRate) FROM PLAN)`,
     ],
-    initialCode: "SELECT planName, monthlyRate\nFROM PLAN\n",
+    initialCode:
+      "SELECT planName, monthlyRate\nFROM PLAN\nWHERE monthlyRate = (\n  \n);",
   },
   {
     id: "2.1.3",
@@ -456,25 +457,18 @@ GROUP BY operatorName`,
       "Write an SQL query to list all services that have never been used. Display the service ID and service name.",
     type: "dql",
     hints: [
-      "A service has been used only if its serviceId appears in `USAGE`.",
+      "A service has been used only if its serviceId appears in USES.",
       "Start from SERVICE, because you want services even when no matching usage row exists.",
-      "Use either LEFT JOIN ... IS NULL or NOT EXISTS to keep services with no matching `USAGE` record.",
+      "Use either LEFT JOIN ... IS NULL or NOT EXISTS to keep services with no matching USES record.",
     ],
     solutionQueries: [
       `SELECT s.serviceId, s.serviceName
 FROM SERVICE s
-LEFT JOIN \`USAGE\` u ON u.serviceId = s.serviceId
+LEFT JOIN USES u ON u.serviceId = s.serviceId
 WHERE u.serviceId IS NULL`,
-      `SELECT serviceName
-FROM SERVICE s
-WHERE NOT EXISTS (
-  SELECT 1
-  FROM \`USAGE\` u
-  WHERE u.serviceId = s.serviceId
-)`,
       `SELECT serviceId, serviceName
 FROM SERVICE
-WHERE serviceId NOT IN (SELECT DISTINCT serviceId FROM \`USAGE\`)`,
+WHERE serviceId NOT IN (SELECT DISTINCT serviceId FROM USES)`,
     ],
     initialCode: "SELECT serviceId, serviceName\nFROM SERVICE\n",
   },
@@ -512,29 +506,29 @@ WHERE s.phoneNumber IS NULL`,
     order: 15,
     title: "Subscribers with at least two plans",
     description:
-      "Write an SQL query to find subscribers who have subscribed to at least two different plans. Display the customer name, phone number, and the number of plans they have subscribed to.",
+      "Write an SQL query to find subscribers who have signed up for at least two different plans. Display the customer name, phone number, and the number of plans they have signed up for.",
     type: "dql",
     hints: [
-      "The table that records plan sign-ups is SUBSCRIPTION.",
-      "Join SUBSCRIPTION to SUBSCRIBER for phoneNumber, then to CUSTOMER for customerName.",
+      "The table that records plan signups is SIGNUP.",
+      "Join SIGNUP to SUBSCRIBER for phoneNumber, then to CUSTOMER for customerName.",
       "Group by the subscriber line and use HAVING to keep only groups with at least two plans.",
     ],
     solutionQueries: [
-      `SELECT DISTINCT c.customerName, s.phoneNumber, COUNT(sub.planId) AS nombrePlan
-FROM SUBSCRIPTION sub
-JOIN SUBSCRIBER s ON sub.phoneNumber = s.phoneNumber
+      `SELECT DISTINCT c.customerName, s.phoneNumber, COUNT(su.planId) AS nombrePlan
+FROM SIGNUP su
+JOIN SUBSCRIBER s ON su.phoneNumber = s.phoneNumber
 JOIN CUSTOMER c ON c.customerId = s.customerId
 GROUP BY s.phoneNumber
 HAVING nombrePlan >= 2`,
-      `SELECT DISTINCT c.customerName, s.phoneNumber, COUNT(DISTINCT sub.planId) AS nombrePlan
+      `SELECT DISTINCT c.customerName, s.phoneNumber, COUNT(DISTINCT su.planId) AS nombrePlan
 FROM SUBSCRIBER s
-JOIN SUBSCRIPTION sub ON s.phoneNumber = sub.phoneNumber
+JOIN SIGNUP su ON s.phoneNumber = su.phoneNumber
 JOIN CUSTOMER c ON c.customerId = s.customerId
 GROUP BY s.phoneNumber
 HAVING nombrePlan >= 2`,
     ],
     initialCode:
-      "SELECT c.customerName, s.phoneNumber, COUNT(DISTINCT sub.planId) AS planCount\nFROM ",
+      "SELECT c.customerName, s.phoneNumber, COUNT(DISTINCT su.planId) AS planCount\nFROM SIGNUP su\n",
   },
   {
     id: "2.2.2",
@@ -549,7 +543,7 @@ HAVING nombrePlan >= 2`,
 Display operator, service name, total hours, total data in GB, and total cost.`,
     type: "dql",
     hints: [
-      "Each row in `USAGE` has the quantities to sum; SERVICE gives serviceName and SUBSCRIBER gives operatorName.",
+      "Each row in USES has the quantities to sum; SERVICE gives serviceName and SUBSCRIBER gives operatorName.",
       "Group by both service and operator so every service/operator pair has its own totals.",
       "Convert callDuration with / 60 for hours, convert bytes with / POWER(1024, 3) for GB, and SUM amount for total cost.",
     ],
@@ -558,32 +552,24 @@ Display operator, service name, total hours, total data in GB, and total cost.`,
        SUM(u.callDuration) / 60 AS totalCallDuration,
        SUM(u.dataBytes) / POWER(1024, 3) AS totalDataByte,
        SUM(u.amount) AS totalCost
-FROM \`USAGE\` u
+FROM USES u
 JOIN SUBSCRIBER s ON s.phoneNumber = u.phoneNumber
 JOIN SERVICE srv ON srv.serviceId = u.serviceId
 GROUP BY srv.serviceId, s.operatorName`,
-      `SELECT s.operatorName, srv.serviceName,
-       SUM(u.callDuration) / 3600 AS totalHour,
-       SUM(u.dataBytes) / POWER(2, 30) AS totalData,
-       SUM(u.amount) AS totalCost
-FROM \`USAGE\` u
-JOIN SUBSCRIBER s ON u.phoneNumber = s.phoneNumber
-JOIN SERVICE srv ON u.serviceId = srv.serviceId
-GROUP BY srv.serviceId, s.operatorName`,
     ],
     initialCode:
-      "SELECT s.operatorName, srv.serviceName,\n       \nFROM `USAGE` u\n",
+      "SELECT s.operatorName, srv.serviceName,\n       \nFROM USES u\n",
   },
   {
     id: "2.2.3",
     part: "Exercise 2 - Part 2",
     order: 17,
-    title: "Subscribers with no active subscription",
+    title: "Subscribers with no active signup",
     description:
-      "Write an SQL query to find subscribers who do not have any active subscription (no subscription record with endDate = NULL). Display the phone number and customer name.",
+      "Write an SQL query to find subscribers who do not have any active signup (no signup record with endDate = NULL). Display the phone number and customer name.",
     type: "dql",
     hints: [
-      "The document defines an active subscription as a SUBSCRIPTION row whose endDate is NULL.",
+      "The document defines an active signup as a SIGNUP row whose endDate is NULL.",
       "Find subscriber lines for which no such active row exists.",
       "Join CUSTOMER so the final result can display customerName next to phoneNumber.",
     ],
@@ -593,17 +579,17 @@ FROM SUBSCRIBER s
 JOIN CUSTOMER c ON c.customerId = s.customerId
 WHERE s.phoneNumber NOT IN (
   SELECT DISTINCT phoneNumber
-  FROM SUBSCRIPTION sub
-  WHERE endDate IS NULL
+  FROM SIGNUP su
+  WHERE su.endDate IS NULL
 )`,
       `SELECT s.phoneNumber, c.customerName
 FROM SUBSCRIBER s
 JOIN CUSTOMER c ON c.customerId = s.customerId
 WHERE NOT EXISTS (
   SELECT 1
-  FROM SUBSCRIPTION sub
-  WHERE sub.phoneNumber = s.phoneNumber
-    AND sub.endDate IS NULL
+  FROM SIGNUP su
+  WHERE su.phoneNumber = s.phoneNumber
+    AND su.endDate IS NULL
 )`,
     ],
     initialCode: "SELECT s.phoneNumber, c.customerName\nFROM SUBSCRIBER s\n",
@@ -653,7 +639,7 @@ ORDER BY NumberFeature DESC`,
       `SELECT s.phoneNumber, c.customerName
 FROM SUBSCRIBER s
 JOIN CUSTOMER c ON c.customerId = s.customerId
-JOIN \`USAGE\` u ON u.phoneNumber = s.phoneNumber
+JOIN USES u ON u.phoneNumber = s.phoneNumber
 GROUP BY s.phoneNumber, c.customerName
 HAVING COUNT(DISTINCT u.serviceId) = (SELECT COUNT(*) FROM SERVICE)`,
       `SELECT s.phoneNumber, c.customerName
@@ -661,24 +647,11 @@ FROM SUBSCRIBER s
 JOIN CUSTOMER c ON c.customerId = s.customerId
 WHERE (
   SELECT COUNT(DISTINCT u.serviceId)
-  FROM \`USAGE\` u
+  FROM USES u
   WHERE u.phoneNumber = s.phoneNumber
 ) = (
   SELECT COUNT(*)
   FROM SERVICE
-)`,
-      `SELECT s.phoneNumber, c.customerName
-FROM SUBSCRIBER s
-JOIN CUSTOMER c ON c.customerId = s.customerId
-WHERE NOT EXISTS (
-  SELECT 1
-  FROM SERVICE srv
-  WHERE NOT EXISTS (
-    SELECT 1
-    FROM \`USAGE\` u
-    WHERE u.phoneNumber = s.phoneNumber
-      AND u.serviceId = srv.serviceId
-  )
 )`,
     ],
     initialCode: "SELECT s.phoneNumber, c.customerName\nFROM SUBSCRIBER s\n",
@@ -692,30 +665,30 @@ WHERE NOT EXISTS (
       "Write an SQL query to determine which service has generated the highest total revenue. Display the service ID, service name, and total revenue.",
     type: "dql",
     hints: [
-      "Revenue for a usage event is stored in `USAGE`.amount.",
-      "Join SERVICE to `USAGE`, group by service, and compute SUM(amount).",
+      "Revenue for a usage event is stored in USES.amount.",
+      "Join SERVICE to USES, group by service, and compute SUM(amount).",
       "Use a nested subquery to find the maximum service total, then keep the service whose total equals it.",
     ],
     solutionQueries: [
       `SELECT srv.serviceId, srv.serviceName, SUM(u.amount) AS total_revenue
 FROM SERVICE srv
-JOIN \`USAGE\` u ON u.serviceId = srv.serviceId
+JOIN USES u ON u.serviceId = srv.serviceId
 GROUP BY srv.serviceId, srv.serviceName
 HAVING SUM(u.amount) = (
   SELECT MAX(total_revenue)
   FROM (
     SELECT SUM(amount) AS total_revenue
-    FROM \`USAGE\`
+    FROM USES
     GROUP BY serviceId
   ) AS revenue_per_service
 )`,
       `SELECT srv.serviceId, srv.serviceName, SUM(u.amount) AS totalRevenue
 FROM SERVICE srv
-JOIN \`USAGE\` u ON u.serviceId = srv.serviceId
+JOIN USES u ON u.serviceId = srv.serviceId
 GROUP BY srv.serviceId, srv.serviceName
 HAVING SUM(u.amount) >= ALL (
   SELECT SUM(amount)
-  FROM \`USAGE\`
+  FROM USES
   GROUP BY serviceId
 )`,
     ],
@@ -739,38 +712,25 @@ HAVING SUM(u.amount) >= ALL (
       `SELECT c.customerName, s.phoneNumber, SUM(u.callDuration) AS totalCallDuration
 FROM CUSTOMER c
 JOIN SUBSCRIBER s ON s.customerId = c.customerId
-JOIN \`USAGE\` u ON u.phoneNumber = s.phoneNumber
+JOIN USES u ON u.phoneNumber = s.phoneNumber
 GROUP BY s.phoneNumber
 HAVING SUM(u.callDuration) = (
   SELECT MAX(totalCallDuration)
   FROM (
     SELECT SUM(callDuration) AS totalCallDuration
-    FROM \`USAGE\`
+    FROM USES
     GROUP BY phoneNumber
   ) AS totalDuration
 )`,
-      `SELECT c.customerName, s.phoneNumber, COALESCE(SUM(u.callDuration), 0) AS total_duration
-FROM CUSTOMER c
-JOIN SUBSCRIBER s ON c.customerId = s.customerId
-LEFT JOIN \`USAGE\` u ON u.phoneNumber = s.phoneNumber
-  AND u.serviceId = (
-    SELECT serviceId
-    FROM SERVICE
-    WHERE serviceName = 'Appel National'
-  )
-GROUP BY s.phoneNumber
-HAVING COALESCE(SUM(u.callDuration), 0) = (
-  SELECT MAX(total_duration)
-  FROM (
-    SELECT COALESCE(SUM(callDuration), 0) AS total_duration
-    FROM \`USAGE\`
-    WHERE serviceId = (
-      SELECT serviceId
-      FROM SERVICE
-      WHERE serviceName = 'Appel National'
-    )
-    GROUP BY phoneNumber
-  ) AS durations
+      `SELECT c.customerName, s.phoneNumber, SUM(u.callDuration) AS totalCallDuration
+FROM USES u
+JOIN SUBSCRIBER s ON s.phoneNumber = u.phoneNumber
+JOIN CUSTOMER c ON c.customerId = s.customerId
+GROUP BY phoneNumber
+HAVING totalCallDuration >= ALL (
+  SELECT SUM(callDuration)
+  FROM USES
+  GROUP BY phoneNumber
 )`,
     ],
     initialCode:
@@ -793,13 +753,13 @@ HAVING COALESCE(SUM(u.callDuration), 0) = (
       `SELECT c.customerName, s.phoneNumber, SUM(u.dataBytes) AS totalDataConsp
 FROM CUSTOMER c
 JOIN SUBSCRIBER s ON c.customerId = s.customerId
-JOIN \`USAGE\` u ON u.phoneNumber = s.phoneNumber
+JOIN USES u ON u.phoneNumber = s.phoneNumber
 GROUP BY c.customerName, s.phoneNumber
 HAVING SUM(u.dataBytes) > (
   SELECT AVG(averageConsp.totalDataConsp)
   FROM (
     SELECT SUM(dataBytes) AS totalDataConsp
-    FROM \`USAGE\`
+    FROM USES
     GROUP BY phoneNumber
   ) averageConsp
 )`,
@@ -834,20 +794,6 @@ LEFT JOIN RECHARGE r
  AND YEAR(r.rechargeDate) = 2025
 GROUP BY months.monthNumber
 ORDER BY months.monthNumber`,
-      `WITH RECURSIVE months AS (
-  SELECT 1 AS monthNumber
-  UNION ALL
-  SELECT monthNumber + 1 FROM months WHERE monthNumber < 12
-)
-SELECT months.monthNumber,
-       COUNT(r.rechargeId) AS rechargeCount,
-       COALESCE(SUM(r.amount), 0) AS totalAmount
-FROM months
-LEFT JOIN RECHARGE r
-  ON MONTH(r.rechargeDate) = months.monthNumber
- AND YEAR(r.rechargeDate) = 2025
-GROUP BY months.monthNumber
-ORDER BY months.monthNumber`,
     ],
     initialCode: "SELECT monthNumber, rechargeCount, totalAmount\nFROM ",
   },
@@ -855,23 +801,23 @@ ORDER BY months.monthNumber`,
     id: "2.4.1",
     part: "Exercise 2 - Part 4",
     order: 24,
-    title: "Add isCall field to SERVICE_USAGE",
-    description: `Add an isCall field to the SERVICE_USAGE table.
+    title: "Add isCall field to USES",
+    description: `Add an isCall field to the USES table.
 
 Write the SQL statements to:
 
-1. Add a boolean column called isCall to the SERVICE_USAGE table (temporarily allowing NULL values).
+1. Add a boolean column called isCall to the USES table (temporarily allowing NULL values).
 2. Update this column to TRUE for records where the service is 'Calls', and FALSE for all other services.
 3. Modify the column to be NOT NULL.`,
     type: "ddl",
     hints: [
       "Do this in three steps: add the column, fill every existing row, then make the column NOT NULL.",
-      "The app schema calls the usage table `USAGE`; remember the backticks because it is a reserved word.",
+      "The app schema calls the table USES, so write ALTER TABLE USES directly.",
       "Use SERVICE to identify call rows. In this seed data, the call service is named 'Appel National'.",
     ],
     solutionQueries: [
-      `ALTER TABLE \`USAGE\` ADD COLUMN isCall BOOLEAN NULL;
-UPDATE \`USAGE\`
+      `ALTER TABLE USES ADD COLUMN isCall BOOLEAN NULL;
+UPDATE USES
 SET isCall = CASE
   WHEN serviceId = (
     SELECT serviceId
@@ -880,19 +826,19 @@ SET isCall = CASE
   ) THEN TRUE
   ELSE FALSE
 END;
-ALTER TABLE \`USAGE\` MODIFY COLUMN isCall BOOLEAN NOT NULL;`,
-      `ALTER TABLE \`USAGE\` ADD COLUMN isCall BOOLEAN NULL;
-UPDATE \`USAGE\` u
+ALTER TABLE USES MODIFY COLUMN isCall BOOLEAN NOT NULL;`,
+      `ALTER TABLE USES ADD COLUMN isCall BOOLEAN NULL;
+UPDATE USES u
 JOIN SERVICE s ON s.serviceId = u.serviceId
 SET u.isCall = (s.serviceName = 'Appel National');
-ALTER TABLE \`USAGE\` MODIFY COLUMN isCall BOOLEAN NOT NULL;`,
+ALTER TABLE USES MODIFY COLUMN isCall BOOLEAN NOT NULL;`,
     ],
     verificationQueries: [
       {
         sql: `SELECT COLUMN_NAME AS columnName, IS_NULLABLE AS isNullable
 FROM INFORMATION_SCHEMA.COLUMNS
 WHERE TABLE_SCHEMA = DATABASE()
-  AND TABLE_NAME = 'USAGE'
+  AND TABLE_NAME = 'USES'
   AND COLUMN_NAME = 'isCall'`,
         expectedOutput: {
           columns: ["columnName", "isNullable"],
@@ -903,15 +849,15 @@ WHERE TABLE_SCHEMA = DATABASE()
         sql: `SELECT
   SUM(CASE WHEN isCall = TRUE THEN 1 ELSE 0 END) AS callRows,
   SUM(CASE WHEN isCall = FALSE THEN 1 ELSE 0 END) AS nonCallRows
-FROM \`USAGE\``,
+FROM USES`,
         expectedOutput: {
           columns: ["callRows", "nonCallRows"],
-          rows: [{ callRows: 1, nonCallRows: 4 }],
+          rows: [{ callRows: 5, nonCallRows: 20 }],
         },
       },
     ],
     allowAlter: true,
-    initialCode: "ALTER TABLE `USAGE` ADD COLUMN isCall BOOLEAN NULL;\n",
+    initialCode: "ALTER TABLE USES ADD COLUMN isCall BOOLEAN NULL;\n",
   },
   {
     id: "2.4.2",
@@ -955,7 +901,7 @@ WHERE TABLE_SCHEMA = DATABASE()
         sql: "SELECT COUNT(*) AS activeSubscriberCount FROM activeSubscribers",
         expectedOutput: {
           columns: ["activeSubscriberCount"],
-          rows: [{ activeSubscriberCount: 3 }],
+          rows: [{ activeSubscriberCount: 5 }],
         },
       },
     ],

@@ -9,16 +9,19 @@ import {
 
 const STORAGE_KEY = "bdd-revision-progress";
 
+export type CompletedExerciseStatus = "success" | "hinted" | "revealed";
+
 type ProgressData = {
   completedExercises: string[];
   lastExerciseId: string | null;
   hintedExerciseIds: string[];
   revealedExerciseIds: string[];
+  completedExerciseStatuses: Record<string, CompletedExerciseStatus>;
 };
 
 type ProgressContextValue = ProgressData & {
   completed: string[];
-  markComplete: (exerciseId: string) => void;
+  markComplete: (exerciseId: string, status?: CompletedExerciseStatus) => void;
   markHintUsed: (exerciseId: string) => void;
   markSolutionRevealed: (exerciseId: string) => void;
   reset: () => void;
@@ -45,6 +48,11 @@ function loadProgress(): ProgressData {
         revealedExerciseIds: Array.isArray(parsed.revealedExerciseIds)
           ? parsed.revealedExerciseIds
           : [],
+        completedExerciseStatuses:
+          parsed.completedExerciseStatuses &&
+          typeof parsed.completedExerciseStatuses === "object"
+            ? parsed.completedExerciseStatuses
+            : {},
       };
     }
   } catch {
@@ -55,6 +63,7 @@ function loadProgress(): ProgressData {
     lastExerciseId: null,
     hintedExerciseIds: [],
     revealedExerciseIds: [],
+    completedExerciseStatuses: {},
   };
 }
 
@@ -65,18 +74,25 @@ function saveProgress(data: ProgressData) {
 export function ProgressProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<ProgressData>(() => loadProgress());
 
-  const markComplete = useCallback((exerciseId: string) => {
-    setData((prev) => {
-      if (prev.completedExercises.includes(exerciseId)) return prev;
-      const next = {
-        ...prev,
-        completedExercises: [...prev.completedExercises, exerciseId],
-        lastExerciseId: exerciseId,
-      };
-      saveProgress(next);
-      return next;
-    });
-  }, []);
+  const markComplete = useCallback(
+    (exerciseId: string, status: CompletedExerciseStatus = "success") => {
+      setData((prev) => {
+        if (prev.completedExercises.includes(exerciseId)) return prev;
+        const next = {
+          ...prev,
+          completedExercises: [...prev.completedExercises, exerciseId],
+          completedExerciseStatuses: {
+            ...prev.completedExerciseStatuses,
+            [exerciseId]: status,
+          },
+          lastExerciseId: exerciseId,
+        };
+        saveProgress(next);
+        return next;
+      });
+    },
+    [],
+  );
 
   const markHintUsed = useCallback((exerciseId: string) => {
     setData((prev) => {
@@ -108,6 +124,7 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
       lastExerciseId: null,
       hintedExerciseIds: [],
       revealedExerciseIds: [],
+      completedExerciseStatuses: {},
     };
     saveProgress(empty);
     window.location.reload();

@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { CheckCircle2, Database, FlaskConical, RotateCcw } from "lucide-react";
 import { useState } from "react";
+import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,25 +14,51 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import type { CompletedExerciseStatus } from "@/hooks/use-progress";
+import { useTheme } from "@/hooks/use-theme";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 
 type SidebarProps = {
   completed: string[];
+  completedExerciseStatuses: Record<string, CompletedExerciseStatus>;
   hintedExerciseIds: string[];
   revealedExerciseIds: string[];
   activeExerciseId?: string;
   onReset: () => void;
 };
 
+export function getExerciseIconColor({
+  completedStatus,
+  isCompleted,
+  isHinted,
+  isRevealed,
+}: {
+  completedStatus?: CompletedExerciseStatus;
+  isCompleted: boolean;
+  isHinted: boolean;
+  isRevealed: boolean;
+}) {
+  if (isCompleted) {
+    if (completedStatus === "revealed") return "text-destructive";
+    if (completedStatus === "hinted") return "text-yellow-400";
+    return "text-success";
+  }
+  if (isRevealed) return "text-destructive";
+  if (isHinted) return "text-yellow-400";
+  return "text-muted-foreground";
+}
+
 export function Sidebar({
   completed,
+  completedExerciseStatuses,
   hintedExerciseIds,
   revealedExerciseIds,
   activeExerciseId,
   onReset,
 }: SidebarProps) {
   const { data: groups, isLoading } = trpc.exercises.byPart.useQuery();
+  const { theme, toggle: toggleTheme } = useTheme();
   const [showReset, setShowReset] = useState(false);
 
   return (
@@ -44,6 +71,13 @@ export function Sidebar({
           <Database className="h-5 w-5 text-accent" />
           BDD Revision
         </Link>
+        <AnimatedThemeToggler
+          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-hover hover:text-foreground"
+          theme={theme}
+          onThemeChange={() => {
+            toggleTheme();
+          }}
+        />
       </div>
 
       <Separator />
@@ -66,13 +100,12 @@ export function Sidebar({
                 const isCompleted = completed.includes(exercise.id);
                 const isRevealed = revealedExerciseIds.includes(exercise.id);
                 const isHinted = hintedExerciseIds.includes(exercise.id);
-                const checkColor = isRevealed
-                  ? "text-destructive"
-                  : isHinted
-                    ? "text-yellow-400"
-                    : isCompleted
-                      ? "text-success"
-                      : "text-muted-foreground";
+                const checkColor = getExerciseIconColor({
+                  completedStatus: completedExerciseStatuses[exercise.id],
+                  isCompleted,
+                  isHinted,
+                  isRevealed,
+                });
 
                 return (
                   <Link

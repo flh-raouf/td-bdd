@@ -34,7 +34,7 @@ const relationships: Relationship[] = [
     ],
   },
   {
-    fromTable: "USAGE",
+    fromTable: "USES",
     fromColumn: "phoneNumber",
     toTable: "SUBSCRIBER",
     toColumn: "phoneNumber",
@@ -44,7 +44,7 @@ const relationships: Relationship[] = [
     ],
   },
   {
-    fromTable: "USAGE",
+    fromTable: "USES",
     fromColumn: "serviceId",
     toTable: "SERVICE",
     toColumn: "serviceId",
@@ -69,7 +69,7 @@ const relationships: Relationship[] = [
     ],
   },
   {
-    fromTable: "SUBSCRIPTION",
+    fromTable: "SIGNUP",
     fromColumn: "phoneNumber",
     toTable: "SUBSCRIBER",
     toColumn: "phoneNumber",
@@ -82,7 +82,7 @@ const relationships: Relationship[] = [
     ],
   },
   {
-    fromTable: "SUBSCRIPTION",
+    fromTable: "SIGNUP",
     fromColumn: "planId",
     toTable: "PLAN",
     toColumn: "planId",
@@ -103,9 +103,9 @@ const layout: { table: string; x: number; y: number }[] = [
   { table: "PLAN", x: 30, y: 500 },
   { table: "SUBSCRIBER", x: 380, y: 40 },
   { table: "RECHARGE", x: 380, y: 300 },
-  { table: "USAGE", x: 720, y: 40 },
+  { table: "USES", x: 720, y: 40 },
   { table: "FEATURE", x: 720, y: 330 },
-  { table: "SUBSCRIPTION", x: 720, y: 500 },
+  { table: "SIGNUP", x: 720, y: 500 },
 ];
 
 const tableWidth = 240;
@@ -126,7 +126,7 @@ function getTableHeight(columnCount: number) {
 
 function isBehindTablesRelationship(rel: Relationship) {
   return (
-    rel.fromTable === "SUBSCRIPTION" &&
+    rel.fromTable === "SIGNUP" &&
     rel.fromColumn === "phoneNumber" &&
     rel.toTable === "SUBSCRIBER" &&
     rel.toColumn === "phoneNumber"
@@ -229,7 +229,7 @@ export function ErDiagram() {
   };
 
   return (
-    <div className="overflow-auto rounded-md border border-border bg-sidebar p-5">
+    <div className="overflow-auto rounded-md border border-border bg-card p-5">
       <svg
         viewBox={`0 0 990 ${height}`}
         className="er-diagram-svg w-full"
@@ -251,7 +251,7 @@ export function ErDiagram() {
             <feDropShadow
               dx="0"
               dy="0"
-              floodColor="#0d1117"
+              floodColor="var(--color-card)"
               floodOpacity="0.9"
               stdDeviation="2"
             />
@@ -281,7 +281,7 @@ export function ErDiagram() {
           `}
         </style>
 
-        <rect width="990" height={height} fill="#0d1117" rx={6} />
+        <rect width="990" height={height} fill="var(--color-card)" rx={6} />
 
         <g className="er-relationships er-relationships-behind">
           {relationships.map((rel, i) =>
@@ -303,8 +303,8 @@ export function ErDiagram() {
                 width={tableWidth}
                 height={bh}
                 rx={4}
-                fill="#161b22"
-                stroke="#30363d"
+                fill="var(--color-card, #161b22)"
+                stroke="var(--color-border, #30363d)"
                 strokeWidth={1}
               />
               <rect
@@ -313,20 +313,20 @@ export function ErDiagram() {
                 width={tableWidth}
                 height={tableHeaderHeight}
                 rx={4}
-                fill="#1c2333"
+                fill="var(--color-sidebar-active, #1f2937)"
               />
               <rect
                 x={pos.x}
                 y={pos.y + tableHeaderHeight - 4}
                 width={tableWidth}
                 height={4}
-                fill="#1c2333"
+                fill="var(--color-sidebar-active, #1f2937)"
               />
               <text
                 x={pos.x + tableWidth / 2}
                 y={pos.y + 20}
                 textAnchor="middle"
-                fill="#e1e4e8"
+                fill="var(--color-foreground, #e1e4e8)"
                 fontSize={11}
                 fontWeight="bold"
               >
@@ -338,7 +338,7 @@ export function ErDiagram() {
                     ? pkColor
                     : col.key === "MUL"
                       ? fkColor
-                      : "#8b949e";
+                      : "var(--color-muted, #8b949e)";
                 const prefix =
                   col.key === "PRI" ? "• " : col.key === "MUL" ? "→ " : "  ";
                 return (
@@ -356,7 +356,7 @@ export function ErDiagram() {
                     <text
                       x={pos.x + nameWidth}
                       y={pos.y + tableHeaderHeight + idx * rowHeight + 14}
-                      fill="#484f58"
+                      fill="var(--color-muted-foreground, #484f58)"
                       fontSize={10}
                       fontFamily="monospace"
                     >
@@ -380,7 +380,7 @@ export function ErDiagram() {
 
         {/* Legend */}
         <g transform={`translate(20, ${height - 26})`}>
-          <text x={0} y={0} fill="#8b949e" fontSize={10}>
+          <text x={0} y={0} fill="var(--color-muted, #8b949e)" fontSize={10}>
             <tspan fill={pkColor}>•</tspan> Primary key{" "}
             <tspan fill={fkColor}>→</tspan> Foreign key
           </text>

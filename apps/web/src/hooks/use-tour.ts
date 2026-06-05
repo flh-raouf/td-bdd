@@ -42,7 +42,7 @@ export const tourSteps: TourStep[] = [
     target: "[data-tour=editor]",
     title: "SQL Editor",
     content:
-      "Write your SQL queries here with syntax highlighting. Run tests your query against the database. Submit validates your answer. Ctrl+Enter submits, Ctrl+Shift+Enter runs.",
+      "Write your SQL queries here with syntax highlighting. Run tests your query against the database. Submit validates your answer. Ctrl+Enter runs, Ctrl+Shift+Enter submits.",
     position: "top",
   },
   {

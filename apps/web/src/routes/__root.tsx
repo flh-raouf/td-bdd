@@ -3,7 +3,9 @@ import { createRootRoute, Outlet } from "@tanstack/react-router";
 import { httpBatchLink } from "@trpc/client";
 import { useEffect, useState } from "react";
 import { TourOverlay } from "@/components/tour-overlay";
+import { ExerciseStateProvider } from "@/hooks/use-exercise-state";
 import { ProgressProvider } from "@/hooks/use-progress";
+import { ThemeProvider } from "@/hooks/use-theme";
 import { shouldAutoStartTour, TourProvider, useTour } from "@/hooks/use-tour";
 import { trpc } from "@/lib/trpc";
 
@@ -34,15 +36,19 @@ export function RootComponent() {
   );
 
   return (
-    <ProgressProvider>
-      <TourProvider>
-        <trpc.Provider client={trpcClient} queryClient={queryClient}>
-          <QueryClientProvider client={queryClient}>
-            <RootInner />
-          </QueryClientProvider>
-        </trpc.Provider>
-      </TourProvider>
-    </ProgressProvider>
+    <ThemeProvider>
+      <ExerciseStateProvider>
+        <ProgressProvider>
+          <TourProvider>
+            <trpc.Provider client={trpcClient} queryClient={queryClient}>
+              <QueryClientProvider client={queryClient}>
+                <RootInner />
+              </QueryClientProvider>
+            </trpc.Provider>
+          </TourProvider>
+        </ProgressProvider>
+      </ExerciseStateProvider>
+    </ThemeProvider>
   );
 }
 

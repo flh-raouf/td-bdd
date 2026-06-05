@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="990" height="720" viewBox="0 0 990 720" role="img" aria-label="TelecomDZ ER schema">
+  <defs>
+    <style>
+      .bg { fill: #0d1117; }
+      .table { fill: #161b22; stroke: #30363d; stroke-width: 1.5; }
+      .head { fill: #1f2937; }
+      .title { fill: #e6edf3; font: 700 14px ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .col { fill: #c9d1d9; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .key { fill: #58a6ff; font: 700 11px ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .fk { fill: #f0883e; font: 700 11px ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .rel { fill: none; stroke: #f0883e; stroke-width: 2; marker-end: url(#arrow); }
+    </style>
+    <marker id="arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#f0883e"/>
+    </marker>
+  </defs>
+  <rect class="bg" width="990" height="720"/>
+
+  <path class="rel" d="M380 82 H270"/>
+  <path class="rel" d="M380 362 H340 V82 H380"/>
+  <path class="rel" d="M720 82 H620"/>
+  <path class="rel" d="M720 102 H660 V260 H270 V342"/>
+  <path class="rel" d="M720 392 H675 V542 H270"/>
+  <path class="rel" d="M960 542 H980 V24 H620 V82"/>
+  <path class="rel" d="M720 562 H700 V640 H20 V542 H30"/>
+
+  <g transform="translate(30 40)">
+    <rect class="table" width="240" height="116" rx="8"/>
+    <rect class="head" width="240" height="32" rx="8"/>
+    <text class="title" x="12" y="21">CUSTOMER</text>
+    <text class="key" x="12" y="54">PK</text><text class="col" x="44" y="54">customerId</text>
+    <text class="col" x="44" y="74">customerName</text>
+    <text class="col" x="44" y="94">address</text>
+    <text class="col" x="44" y="114">email</text>
+  </g>
+  <g transform="translate(380 40)">
+    <rect class="table" width="240" height="196" rx="8"/>
+    <rect class="head" width="240" height="32" rx="8"/>
+    <text class="title" x="12" y="21">SUBSCRIBER</text>
+    <text class="key" x="12" y="54">PK</text><text class="col" x="44" y="54">phoneNumber</text>
+    <text class="fk" x="12" y="74">FK</text><text class="col" x="44" y="74">customerId</text>
+    <text class="col" x="44" y="94">balance</text>
+    <text class="col" x="44" y="114">operatorName</text>
+    <text class="col" x="44" y="134">lineType</text>
+    <text class="col" x="44" y="154">lineStatus</text>
+    <text class="col" x="44" y="174">activationDate</text>
+    <text class="col" x="44" y="194">simCode</text>
+  </g>
+  <g transform="translate(720 40)">
+    <rect class="table" width="240" height="156" rx="8"/>
+    <rect class="head" width="240" height="32" rx="8"/>
+    <text class="title" x="12" y="21">USES</text>
+    <text class="key" x="12" y="54">PK/FK</text><text class="col" x="62" y="54">phoneNumber</text>
+    <text class="key" x="12" y="74">PK/FK</text><text class="col" x="62" y="74">serviceId</text>
+    <text class="key" x="12" y="94">PK</text><text class="col" x="44" y="94">usageDateTime</text>
+    <text class="col" x="44" y="114">callDuration</text>
+    <text class="col" x="44" y="134">dataBytes</text>
+    <text class="col" x="44" y="154">amount</text>
+  </g>
+  <g transform="translate(30 300)">
+    <rect class="table" width="240" height="76" rx="8"/>
+    <rect class="head" width="240" height="32" rx="8"/>
+    <text class="title" x="12" y="21">SERVICE</text>
+    <text class="key" x="12" y="54">PK</text><text class="col" x="44" y="54">serviceId</text>
+    <text class="col" x="44" y="74">serviceName</text>
+  </g>
+  <g transform="translate(380 300)">
+    <rect class="table" width="240" height="116" rx="8"/>
+    <rect class="head" width="240" height="32" rx="8"/>
+    <text class="title" x="12" y="21">RECHARGE</text>
+    <text class="key" x="12" y="54">PK</text><text class="col" x="44" y="54">rechargeId</text>
+    <text class="fk" x="12" y="74">FK</text><text class="col" x="44" y="74">phoneNumber</text>
+    <text class="col" x="44" y="94">amount</text>
+    <text class="col" x="44" y="114">rechargeDate</text>
+  </g>
+  <g transform="translate(30 500)">
+    <rect class="table" width="240" height="96" rx="8"/>
+    <rect class="head" width="240" height="32" rx="8"/>
+    <text class="title" x="12" y="21">PLAN</text>
+    <text class="key" x="12" y="54">PK</text><text class="col" x="44" y="54">planId</text>
+    <text class="col" x="44" y="74">planName</text>
+    <text class="col" x="44" y="94">monthlyRate</text>
+  </g>
+  <g transform="translate(720 330)">
+    <rect class="table" width="240" height="96" rx="8"/>
+    <rect class="head" width="240" height="32" rx="8"/>
+    <text class="title" x="12" y="21">FEATURE</text>
+    <text class="key" x="12" y="54">PK</text><text class="col" x="44" y="54">featureId</text>
+    <text class="fk" x="12" y="74">FK</text><text class="col" x="44" y="74">planId</text>
+    <text class="col" x="44" y="94">featureName</text>
+  </g>
+  <g transform="translate(720 500)">
+    <rect class="table" width="240" height="116" rx="8"/>
+    <rect class="head" width="240" height="32" rx="8"/>
+    <text class="title" x="12" y="21">SIGNUP</text>
+    <text class="key" x="12" y="54">PK/FK</text><text class="col" x="62" y="54">phoneNumber</text>
+    <text class="key" x="12" y="74">PK/FK</text><text class="col" x="62" y="74">planId</text>
+    <text class="key" x="12" y="94">PK</text><text class="col" x="44" y="94">startDate</text>
+    <text class="col" x="44" y="114">endDate</text>
+  </g>
+</svg>

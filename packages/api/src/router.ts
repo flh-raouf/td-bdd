@@ -18,8 +18,31 @@ import {
 
 const t = initTRPC.create();
 
+const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
+const rateLimitWindow = 10_000;
+const rateLimitMax = 30;
+
+const rateLimitMiddleware = t.middleware(async ({ path, next }) => {
+  const now = Date.now();
+  const entry = rateLimitStore.get(path);
+
+  if (entry && now < entry.resetAt) {
+    if (entry.count >= rateLimitMax) {
+      throw new TRPCError({
+        code: "TOO_MANY_REQUESTS",
+        message: "Too many requests. Please wait a moment.",
+      });
+    }
+    entry.count++;
+  } else {
+    rateLimitStore.set(path, { count: 1, resetAt: now + rateLimitWindow });
+  }
+
+  return next();
+});
+
 const databaseName = dbConfig.database;
-const erDiagramPath = "/assets/telecomdz-er-schema.png";
+const erDiagramPath = "/assets/telecomdz-er-schema-uses.svg";
 
 const blockedExactKeywords = new Set([
   "DROP",
@@ -579,9 +602,9 @@ async function dropAllSchemaObjects() {
   await pool.query("DROP VIEW IF EXISTS activeSubscribers");
 
   for (const tableName of [
-    "SUBSCRIPTION",
+    "SIGNUP",
     "FEATURE",
-    "USAGE",
+    "USES",
     "RECHARGE",
     "SUBSCRIBER",
     "SERVICE",
@@ -612,7 +635,6 @@ const exerciseOneDependencies: Record<string, string[]> = {
   "1.6": [],
   "1.7": ["1.6"],
   "1.8": ["1.1", "1.2", "1.6"],
-  "1.9": [],
 };
 
 async function prepareDdlValidation(exercise: Exercise) {
@@ -693,6 +715,7 @@ const schemaRouter = t.router({
 
 const queryRouter = t.router({
   execute: t.procedure
+    .use(rateLimitMiddleware)
     .input(
       z.object({
         sql: z.string().min(1),
@@ -838,6 +861,7 @@ async function validateDdlExercise(
 
 const validationRouter = t.router({
   submit: t.procedure
+    .use(rateLimitMiddleware)
     .input(
       z.object({
         exerciseId: exerciseIdSchema,

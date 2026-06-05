@@ -3,35 +3,94 @@ import {
   ChevronRight,
   Database,
   Eye,
+  ScanEye,
   Table,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { ErDiagram } from "@/components/er-diagram";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Lens } from "@/components/ui/lens";
 import { Separator } from "@/components/ui/separator";
+import { useMountEffect } from "@/hooks/use-mount-effect";
+import { modKey } from "@/lib/platform";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 
-export function SchemaViewer({ onClose }: { onClose?: () => void }) {
-  const [showModal, setShowModal] = useState(false);
-  const [activeTab, setActiveTab] = useState<"er" | "tables">("er");
+type SchemaViewerProps = {
+  onClose?: () => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+};
 
-  const handleClose = () => {
+function Kbd({ children }: { children: string }) {
+  return (
+    <kbd className="inline-flex items-center rounded-sm border px-1 py-0.5 font-mono text-xs leading-none opacity-50">
+      {children}
+    </kbd>
+  );
+}
+
+export function SchemaViewer({
+  onClose,
+  open,
+  onOpenChange,
+}: SchemaViewerProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const controlled = onOpenChange !== undefined;
+  const showModal = controlled ? (open ?? false) : internalOpen;
+  const setShowModal = controlled
+    ? (v: boolean) => onOpenChange(v)
+    : setInternalOpen;
+
+  const [activeTab, setActiveTab] = useState<"er" | "tables">("er");
+  const [lensEnabled, setLensEnabled] = useState(false);
+
+  const handleClose = useCallback(() => {
     setShowModal(false);
     onClose?.();
-  };
+  }, [setShowModal, onClose]);
+
+  const handleOpen = useCallback(() => {
+    setShowModal(true);
+    setActiveTab("er");
+  }, [setShowModal]);
+
+  const showModalRef = useRef(showModal);
+  showModalRef.current = showModal;
+  const handleCloseRef = useRef(handleClose);
+  handleCloseRef.current = handleClose;
+  const handleOpenRef = useRef(handleOpen);
+  handleOpenRef.current = handleOpen;
+
+  useMountEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "\\") {
+        e.preventDefault();
+        if (showModalRef.current) {
+          handleCloseRef.current();
+        } else {
+          handleOpenRef.current();
+        }
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  });
 
   return (
     <>
       <Button
         size="sm"
-        onClick={() => setShowModal(true)}
+        onClick={handleOpen}
         className="border border-border bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground"
       >
         <Database className="mr-1 h-4 w-4" />
         Database Schema
+        <span className="ml-1.5 inline-flex items-center gap-0.5">
+          <Kbd>{modKey()}</Kbd>+<Kbd>\</Kbd>
+        </span>
       </Button>
 
       {showModal && (
@@ -45,7 +104,19 @@ export function SchemaViewer({ onClose }: { onClose?: () => void }) {
             }}
             aria-label="Close schema viewer"
           />
-          <div className="fixed inset-4 z-50 mx-auto flex max-w-5xl flex-col overflow-hidden rounded-lg border border-border bg-card shadow-lg">
+          <div
+            className="fixed inset-4 z-50 mx-auto flex max-w-5xl flex-col overflow-hidden rounded-lg border border-border bg-card shadow-lg"
+            onKeyDown={(e) => {
+              if (
+                e.target instanceof HTMLInputElement ||
+                e.target instanceof HTMLTextAreaElement
+              )
+                return;
+              if (e.metaKey || e.ctrlKey || e.altKey) return;
+              if (e.key === "d") setActiveTab("er");
+              if (e.key === "t") setActiveTab("tables");
+            }}
+          >
             <div className="flex items-center justify-between border-b border-border px-4 py-3">
               <div className="flex items-center gap-1">
                 <button
@@ -60,6 +131,7 @@ export function SchemaViewer({ onClose }: { onClose?: () => void }) {
                 >
                   <Eye className="h-4 w-4" />
                   ER Diagram
+                  <Kbd>D</Kbd>
                 </button>
                 <button
                   type="button"
@@ -73,6 +145,7 @@ export function SchemaViewer({ onClose }: { onClose?: () => void }) {
                 >
                   <Table className="h-4 w-4" />
                   Tables
+                  <Kbd>T</Kbd>
                 </button>
               </div>
               <Button variant="ghost" size="icon" onClick={handleClose}>
@@ -81,7 +154,30 @@ export function SchemaViewer({ onClose }: { onClose?: () => void }) {
             </div>
 
             <div className="flex-1 overflow-auto p-4">
-              {activeTab === "er" ? <ErDiagram /> : <TablesPanel />}
+              {activeTab === "er" ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-center">
+                    <Button
+                      size="sm"
+                      variant={lensEnabled ? "default" : "ghost"}
+                      onClick={() => setLensEnabled(!lensEnabled)}
+                      className="gap-1.5"
+                    >
+                      <ScanEye className="h-4 w-4" />
+                      {lensEnabled ? "Lens On" : "Lens Off"}
+                    </Button>
+                  </div>
+                  {lensEnabled ? (
+                    <Lens zoomFactor={1.5} lensSize={250}>
+                      <ErDiagram />
+                    </Lens>
+                  ) : (
+                    <ErDiagram />
+                  )}
+                </div>
+              ) : (
+                <TablesPanel />
+              )}
             </div>
           </div>
         </div>

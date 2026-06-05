@@ -8,9 +8,13 @@ type ExercisePanelProps = {
   description: string;
   hints: string[];
   solutionQueries: string[];
+  visibleHints: number;
+  showSolution: boolean;
   onHintRevealed: () => void;
   onSolutionRevealed: () => void;
   onSchemaModalClose: () => void;
+  onVisibleHintsChange: (n: number) => void;
+  onShowSolutionChange: (v: boolean) => void;
 };
 
 export function ExercisePanel({
@@ -18,12 +22,14 @@ export function ExercisePanel({
   description,
   hints,
   solutionQueries,
+  visibleHints,
+  showSolution,
   onHintRevealed,
   onSolutionRevealed,
   onSchemaModalClose,
+  onVisibleHintsChange,
+  onShowSolutionChange,
 }: ExercisePanelProps) {
-  const [visibleHints, setVisibleHints] = useState(0);
-  const [showSolution, setShowSolution] = useState(false);
   const [confirmSolution, setConfirmSolution] = useState(false);
 
   return (
@@ -56,7 +62,7 @@ export function ExercisePanel({
               size="sm"
               onClick={() => {
                 onHintRevealed();
-                setVisibleHints((h) => h + 1);
+                onVisibleHintsChange(visibleHints + 1);
               }}
               disabled={visibleHints >= hints.length}
               className="border-yellow-500/40 bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20"
@@ -153,7 +159,7 @@ export function ExercisePanel({
                 variant="destructive"
                 onClick={() => {
                   onSolutionRevealed();
-                  setShowSolution(true);
+                  onShowSolutionChange(true);
                   setConfirmSolution(false);
                 }}
               >

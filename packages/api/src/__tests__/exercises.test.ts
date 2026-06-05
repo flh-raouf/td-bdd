@@ -170,7 +170,7 @@ describe("exercise data integrity", () => {
     expect(ex1_9?.solutionQueries[0]).toContain("SERVICE");
     expect(ex1_9?.solutionQueries[0]).toContain("PLAN");
     expect(ex1_9?.solutionQueries[0]).toContain("FEATURE");
-    expect(ex1_9?.solutionQueries[0]).toContain("SUBSCRIPTION");
+    expect(ex1_9?.solutionQueries[0]).toContain("SIGNUP");
   });
 
   it("no duplicate exercise ids", () => {

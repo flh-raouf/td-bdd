@@ -133,12 +133,12 @@ Each exercise includes 2–3 progressive hints and one or more accepted solution
 - **SUBSCRIBER** — mobile line (SIM card) identified by phone number
 - **RECHARGE** — prepaid credit top-up events
 - **SERVICE** — available services (calls, SMS, internet, etc.)
-- **USAGE** — usage events (calls made, data consumed)
-- **PLAN** — subscription plans with monthly rates
+- **USES** — usage events (calls made, data consumed)
+- **PLAN** — mobile plans with monthly rates
 - **FEATURE** — features included in each plan
-- **SUBSCRIPTION** — subscriber enrollments in plans
+- **SIGNUP** — subscriber plan signups
 
-Relationships: CUSTOMER → SUBSCRIBER, SUBSCRIBER → RECHARGE/USAGE/SUBSCRIPTION, SERVICE → USAGE, PLAN → FEATURE/SUBSCRIPTION.
+Relationships: CUSTOMER → SUBSCRIBER, SUBSCRIBER → RECHARGE/USES/SIGNUP, SERVICE → USES, PLAN → FEATURE/SIGNUP.
 
 ## License
 

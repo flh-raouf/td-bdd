@@ -8,9 +8,13 @@ describe("ExercisePanel", () => {
     description: "Write a SELECT query.",
     hints: ["Hint one", "Hint two"],
     solutionQueries: ["SELECT * FROM t"],
+    visibleHints: 0,
+    showSolution: false,
     onHintRevealed: vi.fn(),
     onSolutionRevealed: vi.fn(),
     onSchemaModalClose: vi.fn(),
+    onVisibleHintsChange: vi.fn(),
+    onShowSolutionChange: vi.fn(),
   };
 
   it("renders title and description", () => {

@@ -52,13 +52,14 @@ describe("useProgress", () => {
     const { result } = renderHook(() => useProgress(), { wrapper });
 
     act(() => {
-      result.current.markComplete("1.1");
+      result.current.markComplete("1.1", "hinted");
     });
 
     const storedRaw = localStorage.getItem("bdd-revision-progress");
     expect(storedRaw).not.toBeNull();
     const stored = JSON.parse(storedRaw as string);
     expect(stored.completedExercises).toEqual(["1.1"]);
+    expect(stored.completedExerciseStatuses).toEqual({ "1.1": "hinted" });
     expect(stored.lastExerciseId).toBe("1.1");
   });
 

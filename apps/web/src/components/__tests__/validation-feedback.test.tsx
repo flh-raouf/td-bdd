@@ -21,6 +21,18 @@ describe("ValidationFeedback", () => {
     expect(screen.getByText(/3 rows/)).toBeInTheDocument();
   });
 
+  it("labels the first matched solution as teacher solution", () => {
+    render(<ValidationFeedback passed={true} matchedSolutionIndex={1} />);
+    expect(screen.getByText("Matched: Teacher solution")).toBeInTheDocument();
+  });
+
+  it("labels later matched solutions as alternatives", () => {
+    render(<ValidationFeedback passed={true} matchedSolutionIndex={3} />);
+    expect(
+      screen.getByText("Matched: Alternative solution 2"),
+    ).toBeInTheDocument();
+  });
+
   it("uses singular row when count is 1", () => {
     render(
       <ValidationFeedback

@@ -2,19 +2,31 @@ import type { ResultDiff } from "@/lib/validation";
 
 type ValidationFeedbackProps = {
   passed: boolean;
+  matchedSolutionIndex?: number;
   result?: { columns: string[]; rows: Record<string, unknown>[] };
   diff?: ResultDiff;
 };
 
+function getSolutionLabel(solutionIndex?: number) {
+  if (!solutionIndex || solutionIndex <= 1) return "Teacher solution";
+  return `Alternative solution ${solutionIndex - 1}`;
+}
+
 export function ValidationFeedback({
   passed,
+  matchedSolutionIndex,
   result,
   diff,
 }: ValidationFeedbackProps) {
   if (passed) {
+    const solutionLabel = getSolutionLabel(matchedSolutionIndex);
+
     return (
       <div className="rounded-md border border-success/50 bg-success/10 p-4">
         <h3 className="font-semibold text-success">Correct!</h3>
+        <p className="mt-1 text-sm font-medium text-foreground">
+          Matched: {solutionLabel}
+        </p>
         {result && (
           <p className="mt-1 text-sm text-muted-foreground">
             Your query returned {result.rows.length} row

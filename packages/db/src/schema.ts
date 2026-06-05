@@ -51,8 +51,8 @@ export const service = mysqlTable("SERVICE", {
   serviceName: varchar("serviceName", { length: 150 }).notNull(),
 });
 
-export const usage = mysqlTable(
-  "USAGE",
+export const uses = mysqlTable(
+  "USES",
   {
     phoneNumber: varchar("phoneNumber", { length: 20 })
       .notNull()
@@ -95,8 +95,8 @@ export const feature = mysqlTable("FEATURE", {
   featureName: varchar("featureName", { length: 150 }).notNull(),
 });
 
-export const subscription = mysqlTable(
-  "SUBSCRIPTION",
+export const signup = mysqlTable(
+  "SIGNUP",
   {
     phoneNumber: varchar("phoneNumber", { length: 20 })
       .notNull()

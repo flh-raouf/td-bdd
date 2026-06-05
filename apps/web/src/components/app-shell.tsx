@@ -5,6 +5,7 @@ import { useProgress } from "@/hooks/use-progress";
 export function AppShell() {
   const {
     completed,
+    completedExerciseStatuses,
     hintedExerciseIds,
     revealedExerciseIds,
     reset: resetProgress,
@@ -18,6 +19,7 @@ export function AppShell() {
     <div className="flex h-screen w-full overflow-hidden">
       <Sidebar
         completed={completed}
+        completedExerciseStatuses={completedExerciseStatuses}
         hintedExerciseIds={hintedExerciseIds}
         revealedExerciseIds={revealedExerciseIds}
         activeExerciseId={activeExerciseId}
