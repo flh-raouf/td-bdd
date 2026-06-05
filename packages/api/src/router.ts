@@ -660,6 +660,28 @@ async function prepareDdlValidation(exercise: Exercise) {
   await reseedDatabase();
 }
 
+async function acquireDdlLock(exerciseId: string) {
+  const lockKey = `bdd_ddl_${exerciseId}`;
+  const [rows] = await pool.query<RowDataPacket[]>(
+    "SELECT GET_LOCK(?, 15) AS acquiredLock",
+    [lockKey],
+  );
+  const acquiredLock = Number(rows[0]?.acquiredLock ?? 0);
+
+  if (acquiredLock !== 1) {
+    throw new TRPCError({
+      code: "TIMEOUT",
+      message: "DDL validation is busy for this exercise. Please try again.",
+    });
+  }
+
+  return lockKey;
+}
+
+async function releaseDdlLock(lockKey: string) {
+  await pool.query("SELECT RELEASE_LOCK(?)", [lockKey]);
+}
+
 const schemaRouter = t.router({
   tables: t.procedure.query(async () => {
     const [rows] = await pool.query<RowDataPacket[]>(
@@ -809,13 +831,16 @@ async function validateDdlExercise(
   exercise: Exercise,
   userSql: string,
 ): Promise<ValidationResponse> {
+  let lockKey: string | undefined;
+
   try {
+    lockKey = await acquireDdlLock(exercise.id);
     await prepareDdlValidation(exercise);
     await runSqlStatements(userSql, {
       allowAlter: true,
       allowCreateTable: true,
       allowDatabaseSetup: true,
-      rollbackDml: false,
+      rollbackDml: true,
     });
 
     for (const verificationQuery of exercise.verificationQueries ?? []) {
@@ -855,7 +880,13 @@ async function validateDdlExercise(
       diff: sqlErrorDiff(error),
     };
   } finally {
-    await reseedDatabase();
+    if (lockKey) {
+      try {
+        await reseedDatabase();
+      } finally {
+        await releaseDdlLock(lockKey);
+      }
+    }
   }
 }
 

@@ -1,17 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import mysql from "mysql2/promise";
+import { pool } from "./index";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const sqlFilePath = join(__dirname, "../../../TelecomDZ_schema_data.sql");
-
-const connectionConfig = {
-  host: process.env.DB_HOST ?? "localhost",
-  port: Number(process.env.DB_PORT ?? 3308),
-  user: process.env.DB_USER ?? "root",
-  password: process.env.DB_PASSWORD ?? "root",
-};
 
 export const stripComments = (sql: string) =>
   sql
@@ -46,24 +39,32 @@ export async function getSeedStatements(options?: {
 }
 
 export async function seedDatabase() {
-  const connection = await mysql.createConnection(connectionConfig);
+  const connection = await pool.getConnection();
+  const statements = [
+    "DROP DATABASE IF EXISTS DZTelecom",
+    ...(await getSeedStatements({ includeDatabaseSetup: true })),
+  ];
 
   try {
-    const statements = [
-      "DROP DATABASE IF EXISTS DZTelecom",
-      ...(await getSeedStatements({ includeDatabaseSetup: true })),
-    ];
-
     for (const statement of statements) {
-      await connection.query(statement);
+      if (statement.trim().toUpperCase().startsWith("USE ")) {
+        await connection.query(statement);
+        continue;
+      }
+
+      await connection.execute(statement);
     }
 
     console.log("DZTelecom database seeded successfully.");
   } finally {
-    await connection.end();
+    connection.release();
   }
 }
 
 if (import.meta.main) {
-  await seedDatabase();
+  try {
+    await seedDatabase();
+  } finally {
+    await pool.end();
+  }
 }

@@ -13,7 +13,7 @@ export const dbConfig = {
 export const pool = mysql.createPool({
   ...dbConfig,
   waitForConnections: true,
-  connectionLimit: 10,
+  connectionLimit: 80,
   multipleStatements: false,
 });
 
