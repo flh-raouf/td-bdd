@@ -6,3 +6,4 @@ dist
 packages/db/drizzle.config.d.ts
 packages/db/drizzle.config.js
 playwright-report/
+DEPLOYMENT.md

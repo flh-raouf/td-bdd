@@ -1,0 +1,10 @@
+node_modules
+dist
+.turbo
+*.tsbuildinfo
+.git
+.gitignore
+.DS_Store
+*.md
+!.dockerignore
+playwright-report

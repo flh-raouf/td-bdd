@@ -1,0 +1,14 @@
+FROM oven/bun:1-alpine AS builder
+WORKDIR /app
+COPY . .
+RUN bun install
+
+ARG VITE_API_URL=/api
+ENV VITE_API_URL=${VITE_API_URL}
+
+RUN bunx turbo run build --filter=@bdd-revision/web
+
+FROM nginx:alpine
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=builder /app/apps/web/dist /usr/share/nginx/html
+EXPOSE 80
