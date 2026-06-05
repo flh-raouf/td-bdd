@@ -1,6 +1,6 @@
-import confetti from "canvas-confetti";
+export async function fireConfetti() {
+  const confetti = (await import("canvas-confetti")).default;
 
-export function fireConfetti() {
   confetti({
     particleCount: 30,
     spread: 60,
@@ -9,7 +9,8 @@ export function fireConfetti() {
   });
 }
 
-export function fireCannonConfetti() {
+export async function fireCannonConfetti() {
+  const confetti = (await import("canvas-confetti")).default;
   const duration = 3000;
   const end = Date.now() + duration;
 

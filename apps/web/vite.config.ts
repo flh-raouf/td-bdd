@@ -5,6 +5,20 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (
+            id.includes("@codemirror") ||
+            id.includes("@uiw/react-codemirror")
+          ) {
+            return "vendor-codemirror";
+          }
+        },
+      },
+    },
+  },
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname ?? ".", "src"),

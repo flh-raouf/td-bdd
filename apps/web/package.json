@@ -23,7 +23,6 @@
     "canvas-confetti": "^1.9.4",
     "clsx": "latest",
     "lucide-react": "^1.17.0",
-    "motion": "^12.40.0",
     "react": "latest",
     "react-dom": "latest",
     "tailwind-merge": "latest",

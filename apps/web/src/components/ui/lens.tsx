@@ -1,4 +1,3 @@
-import { AnimatePresence, motion, useMotionTemplate } from "motion/react";
 import type React from "react";
 import { useCallback, useMemo, useRef, useState } from "react";
 
@@ -70,26 +69,25 @@ export function Lens({
     if (e.key === "Escape") setIsHovering(false);
   }, []);
 
-  const maskImage = useMotionTemplate`radial-gradient(circle ${
-    lensSize / 2
-  }px at ${currentPosition.x}px ${
-    currentPosition.y
-  }px, ${lensColor} 100%, transparent 100%)`;
+  const maskImage = `radial-gradient(circle ${lensSize / 2}px at ${
+    currentPosition.x
+  }px ${currentPosition.y}px, ${lensColor} 100%, transparent 100%)`;
 
   const LensContent = useMemo(() => {
     const { x, y } = currentPosition;
+    const visible = isStatic || defaultPosition || isHovering;
 
     return (
-      <motion.div
-        initial={{ opacity: 0, scale: 0.58 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.8 }}
-        transition={{ duration }}
+      <div
         className="absolute inset-0 overflow-hidden"
         style={{
           maskImage,
           WebkitMaskImage: maskImage,
           transformOrigin: `${x}px ${y}px`,
+          opacity: visible ? 1 : 0,
+          transform: visible ? "scale(1)" : "scale(0.8)",
+          transition: `opacity ${duration}s ease, transform ${duration}s ease`,
+          pointerEvents: "none",
           zIndex: 50,
         }}
       >
@@ -102,9 +100,18 @@ export function Lens({
         >
           {children}
         </div>
-      </motion.div>
+      </div>
     );
-  }, [currentPosition, maskImage, zoomFactor, children, duration]);
+  }, [
+    currentPosition,
+    isStatic,
+    defaultPosition,
+    isHovering,
+    maskImage,
+    zoomFactor,
+    children,
+    duration,
+  ]);
 
   return (
     <div
@@ -119,13 +126,7 @@ export function Lens({
       tabIndex={0}
     >
       {children}
-      {isStatic || defaultPosition ? (
-        LensContent
-      ) : (
-        <AnimatePresence mode="popLayout">
-          {isHovering && LensContent}
-        </AnimatePresence>
-      )}
+      {LensContent}
     </div>
   );
 }
