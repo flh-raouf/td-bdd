@@ -7,11 +7,10 @@ import {
   Trophy,
   X,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { ExercisePanel } from "@/components/exercise-panel";
 import { ErrorState, LoadingState } from "@/components/query-state";
 import { ResultsTable } from "@/components/results-table";
-import { SqlEditor } from "@/components/sql-editor";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ValidationFeedback } from "@/components/validation-feedback";
@@ -22,15 +21,14 @@ import { fireCannonConfetti, fireConfetti } from "@/lib/confetti";
 import { trpc } from "@/lib/trpc";
 import type { ResultDiff } from "@/lib/validation";
 
+const LazySqlEditor = lazy(() =>
+  import("@/components/sql-editor").then((m) => ({ default: m.SqlEditor })),
+);
+
 type QueryResultData = {
   columns: string[];
   rows: Record<string, unknown>[];
   affectedRows?: number;
-};
-
-type DdlJobState = {
-  jobId: string;
-  status: string;
 };
 
 function getSolutionLabel(index: number) {
@@ -54,7 +52,6 @@ export function ExerciseWorkspace({ exerciseId }: { exerciseId: string }) {
   } = useProgress();
   const { getState, saveState } = useExerciseState();
 
-  const prevExerciseIdRef = useRef(exerciseId);
   const savedState = getState(exerciseId);
 
   const [sql, setSql] = useState(savedState.sql);
@@ -65,7 +62,8 @@ export function ExerciseWorkspace({ exerciseId }: { exerciseId: string }) {
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [runResult, setRunResult] = useState<QueryResultData | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
-  const [ddlJob, setDdlJob] = useState<DdlJobState | null>(null);
+  const [ddlJobId, setDdlJobId] = useState<string | null>(null);
+  const lastProcessedResultRef = useRef<string | null>(null);
   const [validationResult, setValidationResult] = useState<{
     passed: boolean;
     diff?: ResultDiff;
@@ -74,38 +72,57 @@ export function ExerciseWorkspace({ exerciseId }: { exerciseId: string }) {
     verificationLabel?: string;
   } | null>(null);
 
-  const ddlJobStatusQuery = trpc.validation.jobStatus.useQuery(
-    ddlJob?.jobId ?? "",
-    {
-      enabled: !!ddlJob?.jobId,
-      refetchInterval: 1000,
-      staleTime: 0,
-    },
-  );
+  const ddlJobStatusQuery = trpc.validation.jobStatus.useQuery(ddlJobId ?? "", {
+    enabled: !!ddlJobId,
+    refetchInterval: 1000,
+    staleTime: 0,
+  });
 
-  const isDdlPending =
-    ddlJob?.status === "pending" || ddlJob?.status === "running";
+  const ddlJob = ddlJobStatusQuery.data;
+  const ddlStatus = ddlJob?.status;
+  const isDdlPending = ddlStatus === "pending" || ddlStatus === "running";
   const isSubmitted =
     validationResult?.passed ?? completed.includes(exerciseId);
 
   useEffect(() => {
-    if (prevExerciseIdRef.current !== exerciseId) {
-      saveState(prevExerciseIdRef.current, { sql, visibleHints, showSolution });
-      const next = getState(exerciseId);
-      setSql(next.sql);
-      setVisibleHints(next.visibleHints);
-      setShowSolution(next.showSolution);
-      setRunResult(null);
-      setRunError(null);
-      setValidationResult(null);
-      setDdlJob(null);
-      prevExerciseIdRef.current = exerciseId;
-    }
-  }, [exerciseId, sql, visibleHints, showSolution, saveState, getState]);
+    if (!ddlJob) return;
+    const resultKey = `${ddlJob.id}:${ddlJob.status}`;
+    if (lastProcessedResultRef.current === resultKey) return;
+    lastProcessedResultRef.current = resultKey;
 
-  useEffect(() => {
-    saveState(exerciseId, { sql, visibleHints, showSolution });
-  }, [sql, visibleHints, showSolution, exerciseId, saveState]);
+    if (ddlJob.status === "completed" && ddlJob.result) {
+      setValidationResult(ddlJob.result);
+      if (ddlJob.result.passed) {
+        const st: CompletedExerciseStatus = revealedExerciseIds.includes(
+          exerciseId,
+        )
+          ? "revealed"
+          : hintedExerciseIds.includes(exerciseId)
+            ? "hinted"
+            : "success";
+        markComplete(exerciseId, st);
+        if (exercise?.nextExerciseId === null) {
+          setShowCompletionModal(true);
+          fireCannonConfetti();
+        } else {
+          setShowSuccessModal(true);
+          fireConfetti();
+        }
+      }
+    } else if (ddlJob.status === "failed" || ddlJob.status === "timeout") {
+      setValidationResult({
+        passed: false,
+        diff: { sqlError: ddlJob.error ?? "Validation did not complete." },
+      });
+    }
+  }, [
+    ddlJob,
+    exerciseId,
+    exercise?.nextExerciseId,
+    revealedExerciseIds,
+    hintedExerciseIds,
+    markComplete,
+  ]);
 
   const runMutation = trpc.query.execute.useMutation({
     onSuccess: (data) => {
@@ -121,15 +138,13 @@ export function ExerciseWorkspace({ exerciseId }: { exerciseId: string }) {
   const submitMutation = trpc.validation.submit.useMutation({
     onSuccess: (data) => {
       if ("status" in data && data.status === "pending") {
-        setDdlJob({
-          jobId: (data as unknown as { jobId: string }).jobId,
-          status: "pending",
-        });
+        setDdlJobId((data as unknown as { jobId: string }).jobId);
         setValidationResult(null);
+        lastProcessedResultRef.current = null;
         return;
       }
 
-      setDdlJob(null);
+      setDdlJobId(null);
       setValidationResult(data);
       if (data.passed) {
         const status: CompletedExerciseStatus = revealedExerciseIds.includes(
@@ -150,44 +165,10 @@ export function ExerciseWorkspace({ exerciseId }: { exerciseId: string }) {
       }
     },
     onError: (error) => {
-      setDdlJob(null);
+      setDdlJobId(null);
       setValidationResult({ passed: false, diff: { sqlError: error.message } });
     },
   });
-
-  if (
-    ddlJobStatusQuery.data &&
-    ddlJobStatusQuery.data.status !== ddlJob?.status
-  ) {
-    const job = ddlJobStatusQuery.data;
-    setDdlJob({ jobId: job.id, status: job.status });
-
-    if (job.status === "completed" && job.result) {
-      setValidationResult(job.result);
-      if (job.result.passed) {
-        const st: CompletedExerciseStatus = revealedExerciseIds.includes(
-          exerciseId,
-        )
-          ? "revealed"
-          : hintedExerciseIds.includes(exerciseId)
-            ? "hinted"
-            : "success";
-        markComplete(exerciseId, st);
-        if (exercise?.nextExerciseId === null) {
-          setShowCompletionModal(true);
-          fireCannonConfetti();
-        } else {
-          setShowSuccessModal(true);
-          fireConfetti();
-        }
-      }
-    } else if (job.status === "failed" || job.status === "timeout") {
-      setValidationResult({
-        passed: false,
-        diff: { sqlError: job.error ?? "Validation did not complete." },
-      });
-    }
-  }
 
   if (isLoading) {
     return (
@@ -215,7 +196,7 @@ export function ExerciseWorkspace({ exerciseId }: { exerciseId: string }) {
 
   const handleSubmit = () => {
     setValidationResult(null);
-    setDdlJob(null);
+    setDdlJobId(null);
     submitMutation.mutate({ exerciseId, userSql: sql });
   };
 
@@ -226,6 +207,21 @@ export function ExerciseWorkspace({ exerciseId }: { exerciseId: string }) {
       sql,
       allowAlter: (exercise as { allowAlter?: boolean }).allowAlter ?? false,
     });
+  };
+
+  const handleSqlChange = (value: string) => {
+    setSql(value);
+    saveState(exerciseId, { sql: value, visibleHints, showSolution });
+  };
+
+  const handleVisibleHintsChange = (value: number) => {
+    setVisibleHints(value);
+    saveState(exerciseId, { sql, visibleHints: value, showSolution });
+  };
+
+  const handleShowSolutionChange = (value: boolean) => {
+    setShowSolution(value);
+    saveState(exerciseId, { sql, visibleHints, showSolution: value });
   };
 
   return (
@@ -240,8 +236,8 @@ export function ExerciseWorkspace({ exerciseId }: { exerciseId: string }) {
           showSolution={showSolution}
           onHintRevealed={() => markHintUsed(exerciseId)}
           onSolutionRevealed={() => markSolutionRevealed(exerciseId)}
-          onVisibleHintsChange={setVisibleHints}
-          onShowSolutionChange={setShowSolution}
+          onVisibleHintsChange={handleVisibleHintsChange}
+          onShowSolutionChange={handleShowSolutionChange}
           onSchemaModalClose={() => {
             setTimeout(() => editorRef.current?.view?.focus(), 0);
           }}
@@ -249,17 +245,28 @@ export function ExerciseWorkspace({ exerciseId }: { exerciseId: string }) {
 
         <Separator />
 
-        <SqlEditor
-          ref={editorRef}
-          data-tour="editor"
-          hideRun={exercise.type === "ddl"}
-          value={sql}
-          onChange={setSql}
-          onSubmit={handleSubmit}
-          onRun={handleRun}
-          isSubmitting={submitMutation.isPending || isDdlPending}
-          isRunning={runMutation.isPending}
-        />
+        <Suspense
+          fallback={
+            <div className="rounded-md border border-border h-[240px] flex items-center justify-center bg-sidebar/30">
+              <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+                Loading editor...
+              </div>
+            </div>
+          }
+        >
+          <LazySqlEditor
+            ref={editorRef}
+            data-tour="editor"
+            hideRun={exercise.type === "ddl"}
+            value={sql}
+            onChange={handleSqlChange}
+            onSubmit={handleSubmit}
+            onRun={handleRun}
+            isSubmitting={submitMutation.isPending || isDdlPending}
+            isRunning={runMutation.isPending}
+          />
+        </Suspense>
 
         <div data-tour="results">
           {runError && (
@@ -284,13 +291,13 @@ export function ExerciseWorkspace({ exerciseId }: { exerciseId: string }) {
               </p>
               <ValidationFeedback
                 passed={false}
-                status={ddlJob?.status}
-                jobId={ddlJob?.jobId}
+                status={ddlStatus}
+                jobId={ddlJob?.id}
               />
             </div>
           )}
 
-          {ddlJobStatusQuery.isError && ddlJob && (
+          {ddlJobStatusQuery.isError && ddlJobId && (
             <div>
               <p className="mb-2 text-xs font-medium text-muted-foreground">
                 Submission result

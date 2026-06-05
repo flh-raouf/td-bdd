@@ -20,5 +20,5 @@ export const exerciseRoute = createRoute({
 export function ExercisePage() {
   const { exerciseId } = exerciseRoute.useParams();
 
-  return <ExerciseWorkspace exerciseId={exerciseId} />;
+  return <ExerciseWorkspace key={exerciseId} exerciseId={exerciseId} />;
 }

@@ -4,6 +4,7 @@ import {
   type ReactNode,
   useCallback,
   useContext,
+  useMemo,
   useState,
 } from "react";
 
@@ -147,14 +148,17 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
     window.location.reload();
   }, []);
 
-  const ctxValue: ProgressContextValue = {
-    ...data,
-    completed: data.completedExercises,
-    markComplete,
-    markHintUsed,
-    markSolutionRevealed,
-    reset,
-  };
+  const ctxValue: ProgressContextValue = useMemo(
+    () => ({
+      ...data,
+      completed: data.completedExercises,
+      markComplete,
+      markHintUsed,
+      markSolutionRevealed,
+      reset,
+    }),
+    [data, markComplete, markHintUsed, markSolutionRevealed, reset],
+  );
 
   return createElement(ProgressContext.Provider, { value: ctxValue }, children);
 }

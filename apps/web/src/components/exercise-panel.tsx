@@ -1,7 +1,12 @@
 import { Eye, Lightbulb } from "lucide-react";
-import { useState } from "react";
-import { SchemaViewer } from "@/components/schema-viewer";
+import { lazy, Suspense, useState } from "react";
 import { Button } from "@/components/ui/button";
+
+const LazySchemaViewer = lazy(() =>
+  import("@/components/schema-viewer").then((m) => ({
+    default: m.SchemaViewer,
+  })),
+);
 
 type ExercisePanelProps = {
   title: string;
@@ -72,7 +77,19 @@ export function ExercisePanel({
         )}
 
         <div className="flex-1" />
-        <SchemaViewer onClose={onSchemaModalClose} />
+        <Suspense
+          fallback={
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 rounded-md border border-border bg-white/5 px-3 py-1.5 text-sm text-muted-foreground"
+              disabled
+            >
+              Database Schema
+            </button>
+          }
+        >
+          <LazySchemaViewer onClose={onSchemaModalClose} />
+        </Suspense>
       </div>
 
       {visibleHints > 0 && (
