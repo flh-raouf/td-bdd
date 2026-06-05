@@ -20,6 +20,7 @@ import {
   getPreviousExerciseId,
 } from "./exercises";
 import { enqueueDdlJob, getJobStatus } from "./jobs";
+import { getMetrics, incrementCounter, recordHistogram } from "./metrics";
 import { consumeRateLimit, rateLimitWindowMs } from "./rate-limit";
 
 type Context = {
@@ -636,13 +637,27 @@ async function runQueryForUser(
   sql: string,
   options: SqlExecutionOptions = getPublicQueryExecutionOptions(),
 ) {
+  const start = performance.now();
+  const sqlKind = classifySql(sql, options);
   try {
-    return await runQuery(sql, options);
+    const result = await runQuery(sql, options);
+    recordHistogram("bdd.sql.duration", performance.now() - start, {
+      kind: sqlKind,
+    });
+    return result;
   } catch (error) {
+    recordHistogram("bdd.sql.duration", performance.now() - start, {
+      kind: sqlKind,
+      outcome: "error",
+    });
     if (error instanceof TRPCError) {
+      incrementCounter("bdd.sql.rejected", {
+        reason: error.code,
+      });
       throw error;
     }
 
+    incrementCounter("bdd.sql.rejected", { reason: "execution_error" });
     throw new TRPCError({
       code: "BAD_REQUEST",
       message: getErrorMessage(error),
@@ -1392,6 +1407,7 @@ const validationRouter = t.router({
       }),
     )
     .mutation(async ({ input }) => {
+      const start = performance.now();
       const exercise = getExercise(input.exerciseId);
 
       if (!exercise) {
@@ -1403,6 +1419,9 @@ const validationRouter = t.router({
 
       if (exercise.type === "ddl") {
         const { jobId } = await enqueueDdlJob(input.exerciseId, input.userSql);
+        recordHistogram("bdd.validation.duration", performance.now() - start, {
+          mode: "ddl",
+        });
         return {
           passed: false,
           exerciseId: input.exerciseId,
@@ -1412,7 +1431,12 @@ const validationRouter = t.router({
         };
       }
 
-      return validateDqlExercise(exercise, input.userSql);
+      const result = await validateDqlExercise(exercise, input.userSql);
+      recordHistogram("bdd.validation.duration", performance.now() - start, {
+        mode: "dql",
+        passed: String(result.passed),
+      });
+      return result;
     }),
 
   jobStatus: t.procedure.input(jobIdSchema).query(async ({ input }) => {
@@ -1438,7 +1462,45 @@ const dbRouter = t.router({
 });
 
 export const appRouter = t.router({
-  health: t.procedure.query(() => ({ status: "ok" as const })),
+  health: t.procedure.query(async () => {
+    const checks: Record<string, string> = {};
+
+    try {
+      await pool.query("SELECT 1");
+      checks.db = "ok";
+    } catch {
+      checks.db = "unhealthy";
+    }
+
+    try {
+      const { getRedis } = await import("./redis");
+      const redis = getRedis();
+      if (redis.status === "ready") {
+        await redis.ping();
+        checks.redis = "ok";
+      } else {
+        checks.redis = "disconnected";
+      }
+    } catch {
+      checks.redis = "unavailable";
+    }
+
+    const healthy = Object.values(checks).every((v) => v === "ok");
+
+    return {
+      status: healthy ? ("ok" as const) : ("degraded" as const),
+      checks,
+      uptime: process.uptime(),
+      dbPool: {
+        active: (pool as unknown as { _allConnections?: { length: number } })
+          ._allConnections?.length,
+        configLimit: dbConfig.host ? 80 : 0,
+      },
+    };
+  }),
+
+  metrics: t.procedure.query(() => getMetrics()),
+
   db: dbRouter,
   exercises: exercisesRouter,
   schema: schemaRouter,

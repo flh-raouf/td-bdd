@@ -19,6 +19,47 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "sh",
+          "-c",
+          "curl -sf http://localhost:3001/health || exit 1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    environment:
+      DB_HOST: db
+      DB_PORT: "3306"
+      DB_USER: ${DB_USER:-root}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME:-DZTelecom}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      DDL_JOB_CONCURRENCY: ${DDL_JOB_CONCURRENCY:-2}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+      replicas: 1
 
   web:
     build:
@@ -26,6 +67,11 @@ services:
       dockerfile: Dockerfile.web
       args:
         VITE_API_URL: /api
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
 
   db:
     image: mysql:8
@@ -34,6 +80,11 @@ services:
       MYSQL_DATABASE: ${DB_NAME:-DZTelecom}
     volumes:
       - db_data:/var/lib/mysql
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1G
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 5s
@@ -44,6 +95,11 @@ services:
     image: redis:7-alpine
     volumes:
       - redis_data:/data
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s

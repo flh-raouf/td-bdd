@@ -7,6 +7,7 @@ import {
   markJobFailed,
   markJobRunning,
 } from "./jobs";
+import { incrementCounter, recordHistogram } from "./metrics";
 import { connectRedis, disconnectRedis } from "./redis";
 import { validateDdlExercise } from "./router";
 
@@ -21,6 +22,8 @@ async function processOneJob(): Promise<boolean> {
 
   const job = await dequeueJob();
   if (!job) return false;
+
+  const jobStart = performance.now();
 
   try {
     await markJobRunning(job.id);
@@ -37,10 +40,17 @@ async function processOneJob(): Promise<boolean> {
 
     const result = await validateDdlExercise(exercise, job.userSql);
     await markJobCompleted(job.id, result);
+    recordHistogram("bdd.ddl.job.duration", performance.now() - jobStart, {
+      outcome: result.passed ? "passed" : "failed",
+    });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unknown worker error";
     await markJobFailed(job.id, message);
+    recordHistogram("bdd.ddl.job.duration", performance.now() - jobStart, {
+      outcome: "error",
+    });
+    incrementCounter("bdd.ddl.job.failed");
   }
 
   return true;
@@ -78,6 +88,7 @@ async function main() {
       }
     } catch (error) {
       console.error("Worker loop error:", error);
+      incrementCounter("bdd.worker.loop.error");
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
   }
