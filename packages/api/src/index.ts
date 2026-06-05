@@ -1,5 +1,5 @@
 import { createHTTPServer } from "@trpc/server/adapters/standalone";
-import { appRouter } from "./router";
+import { appRouter, createContext } from "./router";
 
 const port = Number(process.env.API_PORT ?? 3001);
 const webOrigin = process.env.WEB_ORIGIN ?? "http://localhost:3000";
@@ -18,6 +18,7 @@ createHTTPServer({
 
     next();
   },
+  createContext,
   router: appRouter,
 }).listen(port);
 

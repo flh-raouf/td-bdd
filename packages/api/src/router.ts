@@ -1,3 +1,4 @@
+import type { IncomingMessage } from "node:http";
 import { dbConfig, getSeedStatements, pool } from "@bdd-revision/db";
 import { initTRPC, TRPCError } from "@trpc/server";
 import type {
@@ -16,30 +17,101 @@ import {
   getPreviousExerciseId,
 } from "./exercises";
 
-const t = initTRPC.create();
+type Context = {
+  request?: IncomingMessage;
+};
 
-const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
-const rateLimitWindow = 10_000;
-const rateLimitMax = 30;
+export function createContext({ req }: { req: IncomingMessage }): Context {
+  return { request: req };
+}
 
-const rateLimitMiddleware = t.middleware(async ({ path, next }) => {
-  const now = Date.now();
-  const entry = rateLimitStore.get(path);
+const t = initTRPC.context<Context>().create();
 
-  if (entry && now < entry.resetAt) {
-    if (entry.count >= rateLimitMax) {
+type RateLimitStore = Map<string, number[]>;
+
+const rateLimitStore: RateLimitStore = new Map();
+const rateLimitWindowMs = 1_000;
+const rateLimitFallbackIp = "unknown";
+
+export function getForwardedIp(header: string | string[] | undefined) {
+  const value = Array.isArray(header) ? header[0] : header;
+
+  return value?.split(",")[0]?.trim();
+}
+
+function getClientIp(request: IncomingMessage | undefined) {
+  if (!request) {
+    return rateLimitFallbackIp;
+  }
+
+  if (process.env.TRUST_PROXY === "true") {
+    const forwardedIp = getForwardedIp(request.headers["x-forwarded-for"]);
+    if (forwardedIp) {
+      return forwardedIp;
+    }
+  }
+
+  return request.socket.remoteAddress ?? rateLimitFallbackIp;
+}
+
+export function consumeRateLimit(
+  store: RateLimitStore,
+  key: string,
+  now: number,
+  limit: number,
+  windowMs: number,
+) {
+  for (const [entryKey, timestamps] of store) {
+    const activeTimestamps = timestamps.filter(
+      (timestamp) => now - timestamp < windowMs,
+    );
+
+    if (activeTimestamps.length === 0) {
+      store.delete(entryKey);
+      continue;
+    }
+
+    store.set(entryKey, activeTimestamps);
+  }
+
+  const timestamps = store.get(key) ?? [];
+
+  if (timestamps.length >= limit) {
+    return false;
+  }
+
+  timestamps.push(now);
+  store.set(key, timestamps);
+
+  return true;
+}
+
+function createRateLimitMiddleware(limit: number) {
+  return t.middleware(async ({ ctx, path, next }) => {
+    const clientIp = getClientIp(ctx.request);
+    const key = `${path}:${clientIp}`;
+
+    if (
+      !consumeRateLimit(
+        rateLimitStore,
+        key,
+        Date.now(),
+        limit,
+        rateLimitWindowMs,
+      )
+    ) {
       throw new TRPCError({
         code: "TOO_MANY_REQUESTS",
         message: "Too many requests. Please wait a moment.",
       });
     }
-    entry.count++;
-  } else {
-    rateLimitStore.set(path, { count: 1, resetAt: now + rateLimitWindow });
-  }
 
-  return next();
-});
+    return next();
+  });
+}
+
+const executeRateLimitMiddleware = createRateLimitMiddleware(3);
+const submitRateLimitMiddleware = createRateLimitMiddleware(2);
 
 const databaseName = dbConfig.database;
 const erDiagramPath = "/assets/telecomdz-er-schema-uses.svg";
@@ -737,7 +809,7 @@ const schemaRouter = t.router({
 
 const queryRouter = t.router({
   execute: t.procedure
-    .use(rateLimitMiddleware)
+    .use(executeRateLimitMiddleware)
     .input(
       z.object({
         sql: z.string().min(1),
@@ -892,7 +964,7 @@ async function validateDdlExercise(
 
 const validationRouter = t.router({
   submit: t.procedure
-    .use(rateLimitMiddleware)
+    .use(submitRateLimitMiddleware)
     .input(
       z.object({
         exerciseId: exerciseIdSchema,

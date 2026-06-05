@@ -1,10 +1,43 @@
 import { describe, expect, it } from "vitest";
 import {
   compareResults,
+  consumeRateLimit,
+  getForwardedIp,
   normalizeRow,
   normalizeValue,
   splitSqlStatements,
 } from "../router";
+
+describe("rate limiting helpers", () => {
+  it("uses the first forwarded IP", () => {
+    expect(getForwardedIp("203.0.113.10, 10.0.0.1")).toBe("203.0.113.10");
+  });
+
+  it("tracks each IP independently", () => {
+    const store = new Map<string, number[]>();
+
+    expect(consumeRateLimit(store, "query.execute:ip-a", 1_000, 1, 1_000)).toBe(
+      true,
+    );
+    expect(consumeRateLimit(store, "query.execute:ip-a", 1_100, 1, 1_000)).toBe(
+      false,
+    );
+    expect(consumeRateLimit(store, "query.execute:ip-b", 1_100, 1, 1_000)).toBe(
+      true,
+    );
+  });
+
+  it("allows requests after the sliding window expires", () => {
+    const store = new Map<string, number[]>();
+
+    expect(
+      consumeRateLimit(store, "validation.submit:ip-a", 1_000, 1, 1_000),
+    ).toBe(true);
+    expect(
+      consumeRateLimit(store, "validation.submit:ip-a", 2_000, 1, 1_000),
+    ).toBe(true);
+  });
+});
 
 describe("normalizeValue - additional edge cases", () => {
   it("handles boolean true as string", () => {
