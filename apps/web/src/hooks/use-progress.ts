@@ -29,46 +29,70 @@ type ProgressContextValue = ProgressData & {
 
 const ProgressContext = createContext<ProgressContextValue | null>(null);
 
+const emptyProgress = (): ProgressData => ({
+  completedExercises: [],
+  lastExerciseId: null,
+  hintedExerciseIds: [],
+  revealedExerciseIds: [],
+  completedExerciseStatuses: {},
+});
+
+function stringArray(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((item): item is string => typeof item === "string");
+}
+
+function completedStatusMap(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).filter(
+      (entry): entry is [string, CompletedExerciseStatus] => {
+        const [exerciseId, status] = entry;
+        return (
+          typeof exerciseId === "string" &&
+          (status === "success" || status === "hinted" || status === "revealed")
+        );
+      },
+    ),
+  );
+}
+
 function loadProgress(): ProgressData {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
       return {
-        completedExercises: Array.isArray(parsed.completedExercises)
-          ? parsed.completedExercises
-          : [],
+        completedExercises: stringArray(parsed.completedExercises),
         lastExerciseId:
           typeof parsed.lastExerciseId === "string"
             ? parsed.lastExerciseId
             : null,
-        hintedExerciseIds: Array.isArray(parsed.hintedExerciseIds)
-          ? parsed.hintedExerciseIds
-          : [],
-        revealedExerciseIds: Array.isArray(parsed.revealedExerciseIds)
-          ? parsed.revealedExerciseIds
-          : [],
-        completedExerciseStatuses:
-          parsed.completedExerciseStatuses &&
-          typeof parsed.completedExerciseStatuses === "object"
-            ? parsed.completedExerciseStatuses
-            : {},
+        hintedExerciseIds: stringArray(parsed.hintedExerciseIds),
+        revealedExerciseIds: stringArray(parsed.revealedExerciseIds),
+        completedExerciseStatuses: completedStatusMap(
+          parsed.completedExerciseStatuses,
+        ),
       };
     }
   } catch {
-    // ignore
+    // Corrupt or inaccessible localStorage should not block practice.
   }
-  return {
-    completedExercises: [],
-    lastExerciseId: null,
-    hintedExerciseIds: [],
-    revealedExerciseIds: [],
-    completedExerciseStatuses: {},
-  };
+  return emptyProgress();
 }
 
 function saveProgress(data: ProgressData) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch (error) {
+    console.warn("Unable to save progress to localStorage.", error);
+  }
 }
 
 export function ProgressProvider({ children }: { children: ReactNode }) {
@@ -119,14 +143,7 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const reset = useCallback(() => {
-    const empty: ProgressData = {
-      completedExercises: [],
-      lastExerciseId: null,
-      hintedExerciseIds: [],
-      revealedExerciseIds: [],
-      completedExerciseStatuses: {},
-    };
-    saveProgress(empty);
+    saveProgress(emptyProgress());
     window.location.reload();
   }, []);
 

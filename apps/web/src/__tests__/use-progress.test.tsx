@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import type React from "react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProgressProvider, useProgress } from "../hooks/use-progress";
 
 function wrapper({ children }: { children: React.ReactNode }) {
@@ -10,6 +10,10 @@ function wrapper({ children }: { children: React.ReactNode }) {
 describe("useProgress", () => {
   beforeEach(() => {
     localStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it("throws when used outside provider", () => {
@@ -180,5 +184,63 @@ describe("useProgress", () => {
     expect(result.current.lastExerciseId).toBeNull();
     expect(result.current.hintedExerciseIds).toEqual([]);
     expect(result.current.revealedExerciseIds).toEqual([]);
+  });
+
+  it("filters non-string progress array entries from localStorage", () => {
+    localStorage.setItem(
+      "bdd-revision-progress",
+      JSON.stringify({
+        completedExercises: ["1.1", null, 42, {}],
+        lastExerciseId: "1.1",
+        hintedExerciseIds: [false, "1.2"],
+        revealedExerciseIds: ["1.3", []],
+      }),
+    );
+
+    const { result } = renderHook(() => useProgress(), { wrapper });
+
+    expect(result.current.completed).toEqual(["1.1"]);
+    expect(result.current.hintedExerciseIds).toEqual(["1.2"]);
+    expect(result.current.revealedExerciseIds).toEqual(["1.3"]);
+  });
+
+  it("filters invalid completed exercise statuses from localStorage", () => {
+    localStorage.setItem(
+      "bdd-revision-progress",
+      JSON.stringify({
+        completedExercises: ["1.1", "1.2"],
+        completedExerciseStatuses: {
+          "1.1": "success",
+          "1.2": "invalid",
+          "1.3": null,
+        },
+      }),
+    );
+
+    const { result } = renderHook(() => useProgress(), { wrapper });
+
+    expect(result.current.completedExerciseStatuses).toEqual({
+      "1.1": "success",
+    });
+  });
+
+  it("does not throw when localStorage save fails", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("Storage quota exceeded", "QuotaExceededError");
+    });
+    const { result } = renderHook(() => useProgress(), { wrapper });
+
+    expect(() => {
+      act(() => {
+        result.current.markComplete("1.1");
+      });
+    }).not.toThrow();
+
+    expect(result.current.completed).toEqual(["1.1"]);
+    expect(warnSpy).toHaveBeenCalledWith(
+      "Unable to save progress to localStorage.",
+      expect.any(DOMException),
+    );
   });
 });
