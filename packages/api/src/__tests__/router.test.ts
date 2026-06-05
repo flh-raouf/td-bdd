@@ -1,18 +1,22 @@
 import { TRPCError } from "@trpc/server";
 import { describe, expect, it } from "vitest";
+import { getExercise } from "../exercises";
 import {
   appRouter,
   classifySql,
   compareResults,
   createUserQueryOptions,
   enforceQueryResultLimits,
+  generateValidationId,
   getPublicQueryExecutionOptions,
   isAdminReseedAuthorized,
   normalizeRow,
   normalizeValue,
+  remapCanonicalReferences,
   splitSqlStatements,
   stripLeadingComments,
   stripSqlCommentsAndLiterals,
+  validateDdlExercise,
   validateSqlSafety,
 } from "../router";
 
@@ -470,5 +474,171 @@ describe("compareResults", () => {
       { columns: ["id"], rows: [] },
     );
     expect(diff).toBeNull();
+  });
+});
+
+describe("generateValidationId", () => {
+  it("generates a unique identifier without dashes", () => {
+    const id = generateValidationId();
+    expect(id).toMatch(/^[\da-f_]+$/);
+    expect(id.includes("-")).toBe(false);
+    expect(id.length).toBeGreaterThan(0);
+  });
+
+  it("generates different identifiers on each call", () => {
+    const ids = new Set(
+      Array.from({ length: 10 }, () => generateValidationId()),
+    );
+    expect(ids.size).toBe(10);
+  });
+});
+
+describe("remapCanonicalReferences", () => {
+  it("strips CREATE DATABASE IF NOT EXISTS DZTelecom", () => {
+    const result = remapCanonicalReferences(
+      "CREATE DATABASE IF NOT EXISTS DZTelecom;\nUSE DZTelecom;\nCREATE TABLE t (id INT);",
+      "bdd_ddl_test",
+    );
+    expect(result).toBe("USE `bdd_ddl_test`;\nCREATE TABLE t (id INT);");
+  });
+
+  it("strips CREATE DATABASE DZTelecom without IF NOT EXISTS", () => {
+    const result = remapCanonicalReferences(
+      "CREATE DATABASE DZTelecom;\nUSE DZTelecom;",
+      "bdd_ddl_test",
+    );
+    expect(result).toBe("USE `bdd_ddl_test`;");
+  });
+
+  it("replaces USE DZTelecom with the target database", () => {
+    const result = remapCanonicalReferences(
+      "USE DZTelecom;\nCREATE TABLE t (id INT);",
+      "bdd_ddl_test",
+    );
+    expect(result).toBe("USE `bdd_ddl_test`;\nCREATE TABLE t (id INT);");
+  });
+
+  it("handles backtick-quoted DZTelecom", () => {
+    const result = remapCanonicalReferences(
+      "USE `DZTelecom`;\nSELECT 1;",
+      "bdd_ddl_test",
+    );
+    expect(result).toBe("USE `bdd_ddl_test`;\nSELECT 1;");
+  });
+
+  it("handles backtick-quoted DZTelecom in CREATE DATABASE", () => {
+    const result = remapCanonicalReferences(
+      "CREATE DATABASE IF NOT EXISTS `DZTelecom`;\nUSE `DZTelecom`;",
+      "bdd_ddl_test",
+    );
+    expect(result).toBe("USE `bdd_ddl_test`;");
+  });
+
+  it("preserves SQL that does not reference DZTelecom", () => {
+    const sql = "CREATE TABLE t (id INT);\nALTER TABLE t ADD COLUMN x INT;";
+    expect(remapCanonicalReferences(sql, "bdd_ddl_test")).toBe(sql);
+  });
+
+  it("handles case-insensitive USE and CREATE DATABASE", () => {
+    const result = remapCanonicalReferences(
+      "CREATE database if not exists dztelecom;\nuse dztelecom;\nSELECT 1;",
+      "bdd_ddl_test",
+    );
+    expect(result).toBe("USE `bdd_ddl_test`;\nSELECT 1;");
+  });
+});
+
+describe("DDL validation disposable-schema isolation", () => {
+  it("passes Part 1 DDL exercise validation in isolation", async () => {
+    const exercise = getExercise("1.1");
+    if (!exercise) throw new Error("Missing exercise 1.1");
+    const result = await validateDdlExercise(
+      exercise,
+      "CREATE TABLE CUSTOMER (customerId INT AUTO_INCREMENT PRIMARY KEY, customerName VARCHAR(150) NOT NULL, address TEXT, email VARCHAR(150) UNIQUE);",
+    );
+    expect(result.passed).toBe(true);
+  });
+
+  it("passes Part 1 exercise 1.9 (full creation script) in isolation", async () => {
+    const exercise = getExercise("1.9");
+    if (!exercise) throw new Error("Missing exercise 1.9");
+    const result = await validateDdlExercise(
+      exercise,
+      "CREATE DATABASE IF NOT EXISTS DZTelecom;\nUSE DZTelecom;\n\nCREATE TABLE CUSTOMER (customerId INT AUTO_INCREMENT PRIMARY KEY, customerName VARCHAR(150) NOT NULL, address TEXT, email VARCHAR(150) UNIQUE);\n\nCREATE TABLE SUBSCRIBER (phoneNumber VARCHAR(20) PRIMARY KEY, customerId INT NOT NULL, balance DECIMAL(10,2) DEFAULT 0, operatorName VARCHAR(100), lineType VARCHAR(50), lineStatus VARCHAR(50), activationDate DATE, simCode VARCHAR(100), CONSTRAINT fk_subscriber_customer FOREIGN KEY (customerId) REFERENCES CUSTOMER(customerId) ON UPDATE CASCADE ON DELETE CASCADE);\n\nCREATE TABLE RECHARGE (rechargeId INT AUTO_INCREMENT PRIMARY KEY, phoneNumber VARCHAR(20) NOT NULL, amount DECIMAL(10,2) NOT NULL CHECK (amount > 0), rechargeDate DATE NOT NULL, paymentMethod VARCHAR(50), CONSTRAINT fk_recharge_subscriber FOREIGN KEY (phoneNumber) REFERENCES SUBSCRIBER(phoneNumber) ON UPDATE CASCADE ON DELETE CASCADE);\n\nCREATE TABLE SERVICE (serviceId INT AUTO_INCREMENT PRIMARY KEY, serviceName VARCHAR(150) NOT NULL);\n\nCREATE TABLE PLAN (planId INT AUTO_INCREMENT PRIMARY KEY, planName VARCHAR(150) NOT NULL, monthlyRate DECIMAL(10,2) NOT NULL CHECK (monthlyRate >= 0));\n\nCREATE TABLE FEATURE (featureId INT AUTO_INCREMENT PRIMARY KEY, planId INT NOT NULL, featureName VARCHAR(150) NOT NULL, CONSTRAINT fk_feature_plan FOREIGN KEY (planId) REFERENCES PLAN(planId) ON UPDATE CASCADE ON DELETE CASCADE);\n\nCREATE TABLE USES (phoneNumber VARCHAR(20) NOT NULL, serviceId INT NOT NULL, usageDateTime DATETIME NOT NULL, callDuration INT DEFAULT 0, dataBytes FLOAT DEFAULT 0, amount DECIMAL(10,2) DEFAULT 0, PRIMARY KEY (phoneNumber, serviceId, usageDateTime), CONSTRAINT fk_uses_subscriber FOREIGN KEY (phoneNumber) REFERENCES SUBSCRIBER(phoneNumber) ON UPDATE CASCADE ON DELETE CASCADE, CONSTRAINT fk_uses_service FOREIGN KEY (serviceId) REFERENCES SERVICE(serviceId) ON UPDATE CASCADE ON DELETE CASCADE);\n\nCREATE TABLE SIGNUP (phoneNumber VARCHAR(20) NOT NULL, planId INT NOT NULL, startDate DATE NOT NULL, endDate DATE NOT NULL, amount DECIMAL(10,2) DEFAULT 0, PRIMARY KEY (phoneNumber, planId, startDate), CONSTRAINT chk_dates CHECK (startDate < endDate), CONSTRAINT fk_signup_subscriber FOREIGN KEY (phoneNumber) REFERENCES SUBSCRIBER(phoneNumber) ON UPDATE CASCADE ON DELETE CASCADE, CONSTRAINT fk_signup_plan FOREIGN KEY (planId) REFERENCES PLAN(planId) ON UPDATE CASCADE ON DELETE CASCADE);",
+    );
+    expect(result.passed).toBe(true);
+  });
+
+  it("does not mutate the canonical database after DDL validation", async () => {
+    const caller = appRouter.createCaller({});
+
+    const beforeResult = await caller.query.execute({
+      sql: "SELECT COUNT(*) AS cnt FROM CUSTOMER",
+    });
+    const beforeCount = beforeResult.rows[0]?.cnt;
+
+    const exercise = getExercise("1.1");
+    if (!exercise) throw new Error("Missing exercise 1.1");
+    await validateDdlExercise(
+      exercise,
+      "CREATE TABLE CUSTOMER (customerId INT AUTO_INCREMENT PRIMARY KEY, customerName VARCHAR(150) NOT NULL, address TEXT, email VARCHAR(150) UNIQUE);",
+    );
+
+    const afterResult = await caller.query.execute({
+      sql: "SELECT COUNT(*) AS cnt FROM CUSTOMER",
+    });
+    expect(afterResult.rows[0]?.cnt).toBe(beforeCount);
+  });
+
+  it("does not leave DDL side effects in the canonical schema after a failed DDL", async () => {
+    const caller = appRouter.createCaller({});
+
+    const exercise = getExercise("2.4.1");
+    if (!exercise) throw new Error("Missing exercise 2.4.1");
+    const result = await validateDdlExercise(
+      exercise,
+      "ALTER TABLE USES ADD COLUMN isCall BOOLEAN NULL;\nUPDATE USES SET isCall = TRUE;\nALTER TABLE USES MODIFY COLUMN isCall BOOLEAN NOT NULL;",
+    );
+
+    expect(result.passed).toBe(false);
+
+    const columns = await caller.schema.tableColumns("USES");
+    const hasIsCall = columns.some((col) => col.columnName === "isCall");
+    expect(hasIsCall).toBe(false);
+  });
+
+  it("handles concurrent DDL submissions without cross-contamination", async () => {
+    const exercise = getExercise("1.1");
+    if (!exercise) throw new Error("Missing exercise 1.1");
+
+    const [result1, result2] = await Promise.all([
+      validateDdlExercise(
+        exercise,
+        "CREATE TABLE CUSTOMER (customerId INT AUTO_INCREMENT PRIMARY KEY, customerName VARCHAR(150) NOT NULL, address TEXT, email VARCHAR(150) UNIQUE);",
+      ),
+      validateDdlExercise(
+        exercise,
+        "CREATE TABLE CUSTOMER (customerId INT AUTO_INCREMENT PRIMARY KEY, customerName VARCHAR(150) NOT NULL, address TEXT, email VARCHAR(150) UNIQUE);",
+      ),
+    ]);
+
+    expect(result1.passed).toBe(true);
+    expect(result2.passed).toBe(true);
+  });
+
+  it("validates Part 4 DDL exercise (2.4.3 unique constraint) in isolation", async () => {
+    const caller = appRouter.createCaller({});
+    const exercise = getExercise("2.4.3");
+    if (!exercise) throw new Error("Missing exercise 2.4.3");
+
+    const result = await validateDdlExercise(
+      exercise,
+      "ALTER TABLE SUBSCRIBER ADD CONSTRAINT uq_subscriber_simCode UNIQUE (simCode)",
+    );
+    expect(result.passed).toBe(true);
+
+    const columns = await caller.schema.tableColumns("SUBSCRIBER");
+    expect(columns.some((c) => c.columnName === "simCode")).toBe(true);
+    expect(columns.some((c) => c.columnKey.includes("UNI"))).toBe(false);
   });
 });

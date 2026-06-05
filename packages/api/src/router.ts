@@ -1,9 +1,10 @@
-import { timingSafeEqual } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import { dbConfig, getSeedStatements, pool } from "@bdd-revision/db";
 import { initTRPC, TRPCError } from "@trpc/server";
 import type {
   FieldPacket,
+  PoolConnection,
   ResultSetHeader,
   RowDataPacket,
 } from "mysql2/promise";
@@ -287,6 +288,7 @@ type ValidationResponse = {
   matchedSolutionIndex?: number;
   result?: QueryResult;
   diff?: ResultDiff;
+  verificationLabel?: string;
 };
 
 const identifierSchema = z.string().regex(/^[A-Za-z0-9_]+$/);
@@ -1074,42 +1076,28 @@ async function runQuery(
   return mapAndLimitQueryResult(rows, fields);
 }
 
-async function runSqlStatements(
-  sql: string,
-  options: SqlExecutionOptions = {},
-) {
-  const statements = splitSqlStatements(sql);
-
-  if (statements.length === 0) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: "SQL query is empty.",
-    });
-  }
-
-  let result: QueryResult = { columns: [], rows: [] };
-  for (const statement of statements) {
-    result = await runQuery(statement, options);
-  }
-
-  return result;
-}
-
 async function dropAllSchemaObjects() {
-  await pool.query("SET FOREIGN_KEY_CHECKS = 0");
-  await pool.query("DROP VIEW IF EXISTS activeSubscribers");
+  const [viewRows] = await pool.query<RowDataPacket[]>(
+    `SELECT TABLE_NAME AS name
+     FROM INFORMATION_SCHEMA.VIEWS
+     WHERE TABLE_SCHEMA = DATABASE()`,
+  );
 
-  for (const tableName of [
-    "SIGNUP",
-    "FEATURE",
-    "USES",
-    "RECHARGE",
-    "SUBSCRIBER",
-    "SERVICE",
-    "PLAN",
-    "CUSTOMER",
-  ]) {
-    await pool.query(`DROP TABLE IF EXISTS ${quoteIdentifier(tableName)}`);
+  await pool.query("SET FOREIGN_KEY_CHECKS = 0");
+
+  for (const { name } of viewRows) {
+    await pool.query(`DROP VIEW IF EXISTS ${quoteIdentifier(String(name))}`);
+  }
+
+  const [tableRows] = await pool.query<RowDataPacket[]>(
+    `SELECT TABLE_NAME AS name
+     FROM INFORMATION_SCHEMA.TABLES
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_TYPE = 'BASE TABLE'`,
+  );
+
+  for (const { name } of tableRows) {
+    await pool.query(`DROP TABLE IF EXISTS ${quoteIdentifier(String(name))}`);
   }
 
   await pool.query("SET FOREIGN_KEY_CHECKS = 1");
@@ -1137,49 +1125,171 @@ const exerciseOneDependencies: Record<string, string[]> = {
   "1.8": ["1.1", "1.2", "1.6"],
 };
 
-async function prepareDdlValidation(exercise: Exercise) {
-  if (exercise.id.startsWith("1.")) {
-    await dropAllSchemaObjects();
+export async function validateDdlExercise(
+  exercise: Exercise,
+  userSql: string,
+): Promise<ValidationResponse> {
+  const validationId = generateValidationId();
+  const disposableDbName = `bdd_ddl_${validationId}`;
+  const connection = await pool.getConnection();
 
-    for (const dependencyId of exerciseOneDependencies[exercise.id] ?? []) {
-      const dependency = getExercise(dependencyId);
-      if (!dependency) {
-        continue;
+  try {
+    await connection.query(
+      `CREATE DATABASE IF NOT EXISTS ${quoteIdentifier(disposableDbName)}`,
+    );
+    await connection.query(`USE ${quoteIdentifier(disposableDbName)}`);
+
+    if (exercise.id.startsWith("1.")) {
+      for (const dependencyId of exerciseOneDependencies[exercise.id] ?? []) {
+        const dependency = getExercise(dependencyId);
+        if (!dependency) continue;
+        await runStatementsOnConnection(
+          connection,
+          dependency.solutionQueries[0],
+          {
+            allowAlter: true,
+            allowCreateTable: true,
+            allowDatabaseSetup: true,
+            rollbackDml: false,
+          },
+        );
       }
-
-      await runSqlStatements(dependency.solutionQueries[0], {
-        allowAlter: true,
-        allowCreateTable: true,
-        allowDatabaseSetup: true,
-        rollbackDml: false,
+    } else {
+      const seedStatements = await getSeedStatements({
+        includeDatabaseSetup: false,
       });
+      for (const statement of seedStatements) {
+        await connection.execute(statement);
+      }
     }
-    return;
-  }
 
-  await reseedDatabase();
+    const sanitizedSql = remapCanonicalReferences(userSql, disposableDbName);
+    await runStatementsOnConnection(connection, sanitizedSql, {
+      allowAlter: true,
+      allowCreateTable: true,
+      allowDatabaseSetup: true,
+      rollbackDml: true,
+    });
+
+    for (const verificationQuery of exercise.verificationQueries ?? []) {
+      if (!verificationQuery.expectedOutput) continue;
+
+      const [rows, fields] = await connection.query<RowDataPacket[]>(
+        createUserQueryOptions(verificationQuery.sql),
+      );
+      const actualResult = mapAndLimitQueryResult(rows, fields);
+      const expectedResult = toQueryResult(verificationQuery.expectedOutput);
+      const diff = compareResults(actualResult, expectedResult);
+
+      if (diff) {
+        return {
+          passed: false,
+          exerciseId: exercise.id,
+          mode: exercise.type,
+          result: actualResult,
+          diff,
+          verificationLabel: verificationQuery.label,
+        };
+      }
+    }
+
+    return {
+      passed: true,
+      exerciseId: exercise.id,
+      mode: exercise.type,
+      matchedSolutionIndex: 1,
+    };
+  } catch (error) {
+    return {
+      passed: false,
+      exerciseId: exercise.id,
+      mode: exercise.type,
+      diff: sqlErrorDiff(error),
+    };
+  } finally {
+    try {
+      await connection.query(
+        `DROP DATABASE IF EXISTS ${quoteIdentifier(disposableDbName)}`,
+      );
+    } catch (cleanupError) {
+      console.error(
+        `Failed to drop disposable schema "${disposableDbName}":`,
+        cleanupError,
+      );
+    }
+    try {
+      await connection.query(`USE ${quoteIdentifier(databaseName)}`);
+    } catch {
+      // Connection can still be released even if USE fails
+    }
+    connection.release();
+  }
 }
 
-async function acquireDdlLock(exerciseId: string) {
-  const lockKey = `bdd_ddl_${exerciseId}`;
-  const [rows] = await pool.query<RowDataPacket[]>(
-    "SELECT GET_LOCK(?, 15) AS acquiredLock",
-    [lockKey],
-  );
-  const acquiredLock = Number(rows[0]?.acquiredLock ?? 0);
+export function generateValidationId(): string {
+  return randomUUID().replaceAll("-", "_");
+}
 
-  if (acquiredLock !== 1) {
+export function remapCanonicalReferences(
+  sql: string,
+  targetDb: string,
+): string {
+  return sql
+    .replace(
+      /\bCREATE\s+DATABASE\s+(?:IF\s+NOT\s+EXISTS\s+)?`?DZTelecom`?\s*;?\s*/gi,
+      "",
+    )
+    .replace(/\bUSE\s+`?DZTelecom`?/gi, `USE ${quoteIdentifier(targetDb)}`);
+}
+
+async function runQueryOnConnection(
+  connection: PoolConnection,
+  sql: string,
+  options: SqlExecutionOptions = {},
+): Promise<QueryResult> {
+  const sqlKind = classifySql(sql, options);
+  const rollbackDml = options.rollbackDml ?? true;
+
+  if (sqlKind === "dml" && rollbackDml) {
+    try {
+      await connection.beginTransaction();
+      const [rows, fields] = await connection.query<
+        RowDataPacket[] | ResultSetHeader
+      >(createUserQueryOptions(sql));
+      await connection.rollback();
+      return mapAndLimitQueryResult(rows, fields);
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    }
+  }
+
+  const [rows, fields] = await connection.query<
+    RowDataPacket[] | ResultSetHeader
+  >(createUserQueryOptions(sql));
+  return mapAndLimitQueryResult(rows, fields);
+}
+
+async function runStatementsOnConnection(
+  connection: PoolConnection,
+  sql: string,
+  options: SqlExecutionOptions = {},
+) {
+  const statements = splitSqlStatements(sql);
+
+  if (statements.length === 0) {
     throw new TRPCError({
-      code: "TIMEOUT",
-      message: "DDL validation is busy for this exercise. Please try again.",
+      code: "BAD_REQUEST",
+      message: "SQL query is empty.",
     });
   }
 
-  return lockKey;
-}
+  let result: QueryResult = { columns: [], rows: [] };
+  for (const statement of statements) {
+    result = await runQueryOnConnection(connection, statement, options);
+  }
 
-async function releaseDdlLock(lockKey: string) {
-  await pool.query("SELECT RELEASE_LOCK(?)", [lockKey]);
+  return result;
 }
 
 const schemaRouter = t.router({
@@ -1308,69 +1418,6 @@ async function validateDqlExercise(
     result: userResult,
     diff: firstDiff,
   };
-}
-
-async function validateDdlExercise(
-  exercise: Exercise,
-  userSql: string,
-): Promise<ValidationResponse> {
-  let lockKey: string | undefined;
-
-  try {
-    lockKey = await acquireDdlLock(exercise.id);
-    await prepareDdlValidation(exercise);
-    await runSqlStatements(userSql, {
-      allowAlter: true,
-      allowCreateTable: true,
-      allowDatabaseSetup: true,
-      rollbackDml: true,
-    });
-
-    for (const verificationQuery of exercise.verificationQueries ?? []) {
-      const actualResult = await runQuery(verificationQuery.sql, {
-        rollbackDml: true,
-      });
-
-      if (!verificationQuery.expectedOutput) {
-        continue;
-      }
-
-      const expectedResult = toQueryResult(verificationQuery.expectedOutput);
-      const diff = compareResults(actualResult, expectedResult);
-
-      if (diff) {
-        return {
-          passed: false,
-          exerciseId: exercise.id,
-          mode: exercise.type,
-          result: actualResult,
-          diff,
-        };
-      }
-    }
-
-    return {
-      passed: true,
-      exerciseId: exercise.id,
-      mode: exercise.type,
-      matchedSolutionIndex: 1,
-    };
-  } catch (error) {
-    return {
-      passed: false,
-      exerciseId: exercise.id,
-      mode: exercise.type,
-      diff: sqlErrorDiff(error),
-    };
-  } finally {
-    if (lockKey) {
-      try {
-        await reseedDatabase();
-      } finally {
-        await releaseDdlLock(lockKey);
-      }
-    }
-  }
 }
 
 const validationRouter = t.router({

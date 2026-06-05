@@ -20,4 +20,5 @@ export type ResultDiff = {
   rowCountDiff?: RowCountDiff;
   dataDiff?: DataDiff;
   sqlError?: string;
+  verificationLabel?: string;
 };

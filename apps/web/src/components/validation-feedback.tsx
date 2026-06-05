@@ -5,6 +5,7 @@ type ValidationFeedbackProps = {
   matchedSolutionIndex?: number;
   result?: { columns: string[]; rows: Record<string, unknown>[] };
   diff?: ResultDiff;
+  verificationLabel?: string;
 };
 
 function getSolutionLabel(solutionIndex?: number) {
@@ -17,6 +18,7 @@ export function ValidationFeedback({
   matchedSolutionIndex,
   result,
   diff,
+  verificationLabel,
 }: ValidationFeedbackProps) {
   if (passed) {
     const solutionLabel = getSolutionLabel(matchedSolutionIndex);
@@ -48,6 +50,10 @@ export function ValidationFeedback({
   return (
     <div className="rounded-md border border-destructive/50 bg-destructive/10 p-4">
       <h3 className="mb-2 font-semibold text-destructive">Incorrect</h3>
+
+      {verificationLabel && (
+        <p className="mb-3 text-sm font-medium">{verificationLabel}</p>
+      )}
 
       {diff.sqlError && (
         <div className="mb-3 rounded bg-card p-3 font-mono text-sm text-red-400 whitespace-pre-wrap">
@@ -93,18 +99,38 @@ export function ValidationFeedback({
       )}
 
       {diff.dataDiff && (
-        <div className="text-xs">
+        <div>
           {diff.dataDiff.missingRows.length > 0 && (
-            <p className="text-red-400">
-              {diff.dataDiff.missingRows.length} expected row
-              {diff.dataDiff.missingRows.length !== 1 ? "s" : ""} missing
-            </p>
+            <div className="mb-2">
+              <p className="text-sm text-red-400">
+                {diff.dataDiff.missingRows.length} expected row
+                {diff.dataDiff.missingRows.length !== 1 ? "s" : ""} missing
+              </p>
+              {diff.dataDiff.missingRows.slice(0, 5).map((row, index) => (
+                <pre
+                  key={`missing-${index}`}
+                  className="mt-1 rounded bg-card px-2 py-1 font-mono text-xs text-muted-foreground"
+                >
+                  {JSON.stringify(row, null, 2)}
+                </pre>
+              ))}
+            </div>
           )}
           {diff.dataDiff.extraRows.length > 0 && (
-            <p className="text-red-400">
-              {diff.dataDiff.extraRows.length} unexpected row
-              {diff.dataDiff.extraRows.length !== 1 ? "s" : ""} returned
-            </p>
+            <div>
+              <p className="text-sm text-red-400">
+                {diff.dataDiff.extraRows.length} unexpected row
+                {diff.dataDiff.extraRows.length !== 1 ? "s" : ""} returned
+              </p>
+              {diff.dataDiff.extraRows.slice(0, 5).map((row, index) => (
+                <pre
+                  key={`extra-${index}`}
+                  className="mt-1 rounded bg-card px-2 py-1 font-mono text-xs text-muted-foreground"
+                >
+                  {JSON.stringify(row, null, 2)}
+                </pre>
+              ))}
+            </div>
           )}
         </div>
       )}

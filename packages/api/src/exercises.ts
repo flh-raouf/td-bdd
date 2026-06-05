@@ -8,6 +8,7 @@ export type ExpectedOutput = {
 export type VerificationQuery = {
   sql: string;
   expectedOutput?: ExpectedOutput;
+  label?: string;
 };
 
 export type Exercise = {
@@ -171,6 +172,7 @@ WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '${tableName}'`,
     columns: ["tableName"],
     rows: [{ tableName }],
   },
+  label: `Table '${tableName}' must exist`,
 });
 
 const columnCountVerification = (
@@ -184,6 +186,7 @@ WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '${tableName}'`,
     columns: ["columnCount"],
     rows: [{ columnCount }],
   },
+  label: `Table '${tableName}' must have ${columnCount} column${columnCount !== 1 ? "s" : ""}`,
 });
 
 const primaryKeyCountVerification = (
@@ -199,6 +202,7 @@ WHERE TABLE_SCHEMA = DATABASE()
     columns: ["primaryKeyColumns"],
     rows: [{ primaryKeyColumns }],
   },
+  label: `Table '${tableName}' must have ${primaryKeyColumns} primary key column${primaryKeyColumns !== 1 ? "s" : ""}`,
 });
 
 const foreignKeyCountVerification = (
@@ -214,6 +218,7 @@ WHERE TABLE_SCHEMA = DATABASE()
     columns: ["foreignKeyColumns"],
     rows: [{ foreignKeyColumns }],
   },
+  label: `Table '${tableName}' must have ${foreignKeyColumns} foreign key column${foreignKeyColumns !== 1 ? "s" : ""}`,
 });
 
 const tableVerifications = (
@@ -388,6 +393,7 @@ WHERE TABLE_SCHEMA = DATABASE()
           columns: ["tableCount"],
           rows: [{ tableCount: 8 }],
         },
+        label: "All 8 tables must exist",
       },
       ...tableVerifications("SIGNUP", 5, 3, 2),
       ...tableVerifications("USES", 6, 3, 2),
@@ -860,6 +866,7 @@ WHERE TABLE_SCHEMA = DATABASE()
           columns: ["columnName", "isNullable"],
           rows: [{ columnName: "isCall", isNullable: "NO" }],
         },
+        label: "Column 'isCall' must exist and be NOT NULL",
       },
       {
         sql: `SELECT
@@ -870,6 +877,8 @@ FROM USES`,
           columns: ["callRows", "nonCallRows"],
           rows: [{ callRows: 5, nonCallRows: 20 }],
         },
+        label:
+          "isCall values must match expected (5 call rows, 20 non-call rows)",
       },
     ],
     allowAlter: true,
@@ -912,6 +921,7 @@ WHERE TABLE_SCHEMA = DATABASE()
           columns: ["viewName", "checkOption"],
           rows: [{ viewName: "activeSubscribers", checkOption: "CASCADED" }],
         },
+        label: "View 'activeSubscribers' must exist with WITH CHECK OPTION",
       },
       {
         sql: "SELECT COUNT(*) AS activeSubscriberCount FROM activeSubscribers",
@@ -919,6 +929,7 @@ WHERE TABLE_SCHEMA = DATABASE()
           columns: ["activeSubscriberCount"],
           rows: [{ activeSubscriberCount: 5 }],
         },
+        label: "View must return exactly 5 active subscribers",
       },
     ],
     allowAlter: true,
@@ -958,6 +969,7 @@ WHERE tc.TABLE_SCHEMA = DATABASE()
           columns: ["uniqueConstraintCount"],
           rows: [{ uniqueConstraintCount: 1 }],
         },
+        label: "SUBSCRIBER.simCode must have a UNIQUE constraint",
       },
     ],
     allowAlter: true,

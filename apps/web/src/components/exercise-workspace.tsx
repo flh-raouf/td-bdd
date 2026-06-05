@@ -65,6 +65,7 @@ export function ExerciseWorkspace({ exerciseId }: { exerciseId: string }) {
     diff?: ResultDiff;
     result?: QueryResultData;
     matchedSolutionIndex?: number;
+    verificationLabel?: string;
   } | null>(null);
 
   useEffect(() => {
