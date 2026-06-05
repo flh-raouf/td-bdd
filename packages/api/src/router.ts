@@ -19,6 +19,8 @@ import {
   getNextExerciseId,
   getPreviousExerciseId,
 } from "./exercises";
+import { enqueueDdlJob, getJobStatus } from "./jobs";
+import { consumeRateLimit, rateLimitWindowMs } from "./rate-limit";
 
 type Context = {
   request?: IncomingMessage;
@@ -30,10 +32,6 @@ export function createContext({ req }: { req: IncomingMessage }): Context {
 
 const t = initTRPC.context<Context>().create();
 
-type RateLimitStore = Map<string, number[]>;
-
-const rateLimitStore: RateLimitStore = new Map();
-const rateLimitWindowMs = 1_000;
 const rateLimitFallbackIp = "unknown";
 
 export function getForwardedIp(header: string | string[] | undefined) {
@@ -94,52 +92,14 @@ function getClientIp(request: IncomingMessage | undefined) {
   return request.socket.remoteAddress ?? rateLimitFallbackIp;
 }
 
-export function consumeRateLimit(
-  store: RateLimitStore,
-  key: string,
-  now: number,
-  limit: number,
-  windowMs: number,
-) {
-  for (const [entryKey, timestamps] of store) {
-    const activeTimestamps = timestamps.filter(
-      (timestamp) => now - timestamp < windowMs,
-    );
-
-    if (activeTimestamps.length === 0) {
-      store.delete(entryKey);
-      continue;
-    }
-
-    store.set(entryKey, activeTimestamps);
-  }
-
-  const timestamps = store.get(key) ?? [];
-
-  if (timestamps.length >= limit) {
-    return false;
-  }
-
-  timestamps.push(now);
-  store.set(key, timestamps);
-
-  return true;
-}
-
 function createRateLimitMiddleware(limit: number) {
   return t.middleware(async ({ ctx, path, next }) => {
     const clientIp = getClientIp(ctx.request);
     const key = `${path}:${clientIp}`;
 
-    if (
-      !consumeRateLimit(
-        rateLimitStore,
-        key,
-        Date.now(),
-        limit,
-        rateLimitWindowMs,
-      )
-    ) {
+    const allowed = await consumeRateLimit(key, limit, rateLimitWindowMs);
+
+    if (!allowed) {
       throw new TRPCError({
         code: "TOO_MANY_REQUESTS",
         message: "Too many requests. Please wait a moment.",
@@ -281,7 +241,7 @@ type ResultDiff = {
   sqlError?: string;
 };
 
-type ValidationResponse = {
+export type ValidationResponse = {
   passed: boolean;
   exerciseId: string;
   mode: Exercise["type"];
@@ -1358,7 +1318,7 @@ function sqlErrorDiff(error: unknown): ResultDiff {
   return { sqlError: getErrorMessage(error) };
 }
 
-async function validateDqlExercise(
+export async function validateDqlExercise(
   exercise: Exercise,
   userSql: string,
 ): Promise<ValidationResponse> {
@@ -1420,6 +1380,8 @@ async function validateDqlExercise(
   };
 }
 
+const jobIdSchema = z.string().min(1);
+
 const validationRouter = t.router({
   submit: t.procedure
     .use(submitRateLimitMiddleware)
@@ -1440,11 +1402,31 @@ const validationRouter = t.router({
       }
 
       if (exercise.type === "ddl") {
-        return validateDdlExercise(exercise, input.userSql);
+        const { jobId } = await enqueueDdlJob(input.exerciseId, input.userSql);
+        return {
+          passed: false,
+          exerciseId: input.exerciseId,
+          mode: "ddl" as const,
+          jobId,
+          status: "pending" as const,
+        };
       }
 
       return validateDqlExercise(exercise, input.userSql);
     }),
+
+  jobStatus: t.procedure.input(jobIdSchema).query(async ({ input }) => {
+    const job = await getJobStatus(input);
+
+    if (!job) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: `Job ${input} does not exist or has expired.`,
+      });
+    }
+
+    return job;
+  }),
 });
 
 const dbRouter = t.router({

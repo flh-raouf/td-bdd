@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { getExercise } from "../exercises";
 import {
   appRouter,
@@ -17,6 +17,7 @@ import {
   stripLeadingComments,
   stripSqlCommentsAndLiterals,
   validateDdlExercise,
+  validateDqlExercise,
   validateSqlSafety,
 } from "../router";
 
@@ -640,5 +641,122 @@ describe("DDL validation disposable-schema isolation", () => {
     const columns = await caller.schema.tableColumns("SUBSCRIBER");
     expect(columns.some((c) => c.columnName === "simCode")).toBe(true);
     expect(columns.some((c) => c.columnKey.includes("UNI"))).toBe(false);
+  });
+});
+
+describe("async DDL job queue", () => {
+  beforeAll(async () => {
+    const { getRedis } = await import("../redis");
+    const redis = getRedis();
+    if (redis.status !== "ready") {
+      await redis.connect();
+    }
+    await redis.flushdb();
+  });
+
+  it("enqueues DDL submissions and returns a jobId", async () => {
+    const caller = appRouter.createCaller({});
+
+    const result = await caller.validation.submit({
+      exerciseId: "1.1",
+      userSql:
+        "CREATE TABLE CUSTOMER (customerId INT AUTO_INCREMENT PRIMARY KEY, customerName VARCHAR(150) NOT NULL, address TEXT, email VARCHAR(150) UNIQUE);",
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.mode).toBe("ddl");
+    expect(result.exerciseId).toBe("1.1");
+    expect("jobId" in result && typeof result.jobId === "string").toBe(true);
+    expect("status" in result && result.status === "pending").toBe(true);
+  });
+
+  it("returns job status for an enqueued job", async () => {
+    const caller = appRouter.createCaller({});
+
+    const submitResult = await caller.validation.submit({
+      exerciseId: "1.1",
+      userSql:
+        "CREATE TABLE CUSTOMER (customerId INT AUTO_INCREMENT PRIMARY KEY, customerName VARCHAR(150) NOT NULL, address TEXT, email VARCHAR(150) UNIQUE);",
+    });
+
+    const jobId = (submitResult as Record<string, unknown>).jobId as string;
+    const job = await caller.validation.jobStatus(jobId);
+
+    expect(job.id).toBe(jobId);
+    expect(job.status).toBe("pending");
+    expect(job.exerciseId).toBe("1.1");
+  });
+
+  it("rejects job status queries for non-existent jobs", async () => {
+    const caller = appRouter.createCaller({});
+
+    await expect(
+      caller.validation.jobStatus("00000000-0000-0000-0000-000000000000"),
+    ).rejects.toThrow("does not exist or has expired");
+  });
+
+  it("DQL submissions return immediate results without jobId", async () => {
+    const exercise = getExercise("2.1.1");
+    if (!exercise) throw new Error("Missing exercise 2.1.1");
+    const result = await validateDqlExercise(
+      exercise,
+      "SELECT s.phoneNumber, c.customerName, s.operatorName FROM CUSTOMER c NATURAL JOIN SUBSCRIBER s WHERE s.lineStatus = 'Active'",
+    );
+    expect(result.passed).toBe(true);
+    expect(result.mode).toBe("dql");
+    expect("jobId" in result).toBe(false);
+  });
+
+  it("transitions job through pending -> running -> completed", async () => {
+    const { enqueueDdlJob, getJobStatus, markJobRunning, markJobCompleted } =
+      await import("../jobs");
+
+    const { jobId } = await enqueueDdlJob(
+      "1.1",
+      "CREATE TABLE CUSTOMER (customerId INT AUTO_INCREMENT PRIMARY KEY, customerName VARCHAR(150) NOT NULL, address TEXT, email VARCHAR(150) UNIQUE);",
+    );
+
+    let job = await getJobStatus(jobId);
+    expect(job?.status).toBe("pending");
+
+    await markJobRunning(jobId);
+    job = await getJobStatus(jobId);
+    expect(job?.status).toBe("running");
+
+    const exercise = getExercise("1.1");
+    if (!exercise) throw new Error("Missing exercise");
+    const validationResult = await validateDdlExercise(
+      exercise,
+      "CREATE TABLE CUSTOMER (customerId INT AUTO_INCREMENT PRIMARY KEY, customerName VARCHAR(150) NOT NULL, address TEXT, email VARCHAR(150) UNIQUE);",
+    );
+    await markJobCompleted(jobId, validationResult);
+
+    job = await getJobStatus(jobId);
+    expect(job?.status).toBe("completed");
+    expect(job?.result?.passed).toBe(true);
+  });
+
+  it("marks job as failed on worker error", async () => {
+    const { enqueueDdlJob, getJobStatus, markJobRunning, markJobFailed } =
+      await import("../jobs");
+
+    const { jobId } = await enqueueDdlJob("1.1", "INVALID SQL");
+
+    await markJobRunning(jobId);
+    await markJobFailed(jobId, "Worker error");
+
+    const job = await getJobStatus(jobId);
+    expect(job?.status).toBe("failed");
+    expect(job?.error).toBe("Worker error");
+  });
+
+  it("respects worker concurrency limit", async () => {
+    const { getActiveJobCount, getDdlJobConcurrency } = await import("../jobs");
+
+    const count = await getActiveJobCount();
+    expect(count).toBeGreaterThanOrEqual(0);
+
+    const concurrency = getDdlJobConcurrency();
+    expect(concurrency).toBeGreaterThanOrEqual(1);
   });
 });

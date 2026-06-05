@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { getExercise } from "../exercises";
+import { consumeRateLimit, rateLimitWindowMs } from "../rate-limit";
 import {
   buildSchemaMetadata,
   clearDqlExpectedOutputCache,
   compareResults,
-  consumeRateLimit,
   generateDqlExpectedOutputs,
   getCachedDqlExpectedOutputs,
   getDqlExpectedOutputCacheSize,
@@ -19,29 +19,22 @@ describe("rate limiting helpers", () => {
     expect(getForwardedIp("203.0.113.10, 10.0.0.1")).toBe("203.0.113.10");
   });
 
-  it("tracks each IP independently", () => {
-    const store = new Map<string, number[]>();
-
-    expect(consumeRateLimit(store, "query.execute:ip-a", 1_000, 1, 1_000)).toBe(
-      true,
-    );
-    expect(consumeRateLimit(store, "query.execute:ip-a", 1_100, 1, 1_000)).toBe(
-      false,
-    );
-    expect(consumeRateLimit(store, "query.execute:ip-b", 1_100, 1, 1_000)).toBe(
-      true,
-    );
+  it("tracks each IP independently", async () => {
+    expect(
+      await consumeRateLimit("query.execute:ip-a", 1, rateLimitWindowMs),
+    ).toBe(true);
+    expect(
+      await consumeRateLimit("query.execute:ip-a", 1, rateLimitWindowMs),
+    ).toBe(false);
+    expect(
+      await consumeRateLimit("query.execute:ip-b", 1, rateLimitWindowMs),
+    ).toBe(true);
   });
 
-  it("allows requests after the sliding window expires", () => {
-    const store = new Map<string, number[]>();
-
-    expect(
-      consumeRateLimit(store, "validation.submit:ip-a", 1_000, 1, 1_000),
-    ).toBe(true);
-    expect(
-      consumeRateLimit(store, "validation.submit:ip-a", 2_000, 1, 1_000),
-    ).toBe(true);
+  it("allows requests after the sliding window expires", async () => {
+    expect(await consumeRateLimit("test:ip-c", 1, 1)).toBe(true);
+    await new Promise((r) => setTimeout(r, 5));
+    expect(await consumeRateLimit("test:ip-c", 1, 1)).toBe(true);
   });
 });
 

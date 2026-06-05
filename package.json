@@ -25,5 +25,8 @@
     "turbo": "latest",
     "typescript": "latest",
     "vitest": "^4.1.8"
+  },
+  "dependencies": {
+    "ioredis": "5.11.1"
   }
 }
