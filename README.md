@@ -57,6 +57,10 @@ bun install
 bun run db:seed
 ```
 
+Global database reseeding is a developer/admin maintenance action. Normal app
+users cannot trigger it from the learner-facing API; use this command when you
+need to reset local development data.
+
 ### 4. Start the app
 
 ```bash
@@ -109,7 +113,7 @@ td-bdd/
 | `bun run typecheck` | TypeScript check all packages |
 | `bun run lint` | Biome lint check |
 | `bun run format` | Biome format all files |
-| `bun run db:seed` | Drop and re-seed the DZTelecom database |
+| `bun run db:seed` | Drop and re-seed the DZTelecom database for local development/admin maintenance |
 
 ## Exercises
 

@@ -1,10 +1,13 @@
 import { TRPCError } from "@trpc/server";
 import { describe, expect, it } from "vitest";
 import {
+  appRouter,
   classifySql,
   compareResults,
   createUserQueryOptions,
   enforceQueryResultLimits,
+  getPublicQueryExecutionOptions,
+  isAdminReseedAuthorized,
   normalizeRow,
   normalizeValue,
   splitSqlStatements,
@@ -224,6 +227,49 @@ describe("query result limits", () => {
         maxResponseBytes: 1_000,
       }),
     ).toBe(result);
+  });
+});
+
+describe("public query execution policy", () => {
+  it("keeps sandbox-style execution rollback-only and schema-safe", () => {
+    expect(getPublicQueryExecutionOptions()).toEqual({
+      allowAlter: false,
+      rollbackDml: true,
+    });
+  });
+
+  it("ignores client-supplied allowAlter for public query execution", async () => {
+    const caller = appRouter.createCaller({});
+
+    await expect(
+      caller.query.execute({
+        sql: "ALTER TABLE CUSTOMER ADD COLUMN publicMutation INT",
+        allowAlter: true,
+      }),
+    ).rejects.toThrow("ALTER TABLE statements are only allowed");
+  });
+});
+
+describe("admin reseed guard", () => {
+  it("authorizes reseed only when the admin token header matches", () => {
+    expect(
+      isAdminReseedAuthorized({ "x-bdd-admin-token": "secret" }, "secret"),
+    ).toBe(true);
+    expect(
+      isAdminReseedAuthorized({ "x-bdd-admin-token": "wrong" }, "secret"),
+    ).toBe(false);
+    expect(isAdminReseedAuthorized(undefined, "secret")).toBe(false);
+    expect(
+      isAdminReseedAuthorized({ "x-bdd-admin-token": "secret" }, undefined),
+    ).toBe(false);
+  });
+
+  it("blocks public database reseed before touching the database", async () => {
+    const caller = appRouter.createCaller({});
+
+    await expect(caller.db.reseed()).rejects.toThrow(
+      "Database reset is restricted to admin maintenance",
+    );
   });
 });
 

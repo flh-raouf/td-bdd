@@ -56,7 +56,7 @@ export const tourSteps: TourStep[] = [
     target: "[data-tour=sandbox]",
     title: "Sandbox Mode",
     content:
-      "Try any SQL query freely without an exercise. Explore the database, test ideas, and reset the database anytime with the Reset button.",
+      "Try SQL freely without an exercise. Exploration queries are rollback-safe, and database resets are restricted to maintenance.",
     position: "top",
   },
   {

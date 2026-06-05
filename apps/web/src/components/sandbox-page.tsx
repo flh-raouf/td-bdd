@@ -17,6 +17,7 @@ export function SandboxPage() {
   const [sql, setSql] = useState("");
   const [runResult, setRunResult] = useState<QueryResultData | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
+  const [resetError, setResetError] = useState<string | null>(null);
 
   const runMutation = trpc.query.execute.useMutation({
     onSuccess: (data) => {
@@ -33,11 +34,16 @@ export function SandboxPage() {
     onSuccess: () => {
       setRunResult(null);
       setRunError(null);
+      setResetError(null);
+    },
+    onError: (error) => {
+      setResetError(error.message);
     },
   });
 
   const handleRun = () => {
     setRunError(null);
+    setResetError(null);
     runMutation.mutate({ sql, allowAlter: false });
   };
 
@@ -75,6 +81,12 @@ export function SandboxPage() {
         {runError && (
           <div className="rounded-md border border-destructive/50 bg-destructive/10 p-4 font-mono text-sm text-red-400 whitespace-pre-wrap">
             {runError}
+          </div>
+        )}
+
+        {resetError && (
+          <div className="rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-red-400">
+            {resetError}
           </div>
         )}
 

@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import { dbConfig, getSeedStatements, pool } from "@bdd-revision/db";
 import { initTRPC, TRPCError } from "@trpc/server";
@@ -38,6 +39,43 @@ export function getForwardedIp(header: string | string[] | undefined) {
   const value = Array.isArray(header) ? header[0] : header;
 
   return value?.split(",")[0]?.trim();
+}
+
+function getHeaderValue(
+  headers: IncomingMessage["headers"] | undefined,
+  headerName: string,
+) {
+  const value = headers?.[headerName];
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export function isAdminReseedAuthorized(
+  headers: IncomingMessage["headers"] | undefined,
+  expectedToken: string | undefined = adminReseedToken,
+) {
+  const providedToken = getHeaderValue(headers, adminReseedHeaderName);
+  if (!providedToken || !expectedToken) {
+    return false;
+  }
+
+  const provided = Buffer.from(providedToken);
+  const expected = Buffer.from(expectedToken);
+  return (
+    provided.length === expected.length && timingSafeEqual(provided, expected)
+  );
+}
+
+function assertAdminReseedAuthorized(
+  headers: IncomingMessage["headers"] | undefined,
+) {
+  if (isAdminReseedAuthorized(headers)) {
+    return;
+  }
+
+  throw new TRPCError({
+    code: "FORBIDDEN",
+    message: reseedRestrictedMessage,
+  });
 }
 
 function getClientIp(request: IncomingMessage | undefined) {
@@ -116,6 +154,10 @@ const submitRateLimitMiddleware = createRateLimitMiddleware(2);
 
 const databaseName = dbConfig.database;
 const erDiagramPath = "/assets/telecomdz-er-schema-uses.svg";
+const adminReseedHeaderName = "x-bdd-admin-token";
+const adminReseedToken = process.env.DB_RESEED_TOKEN;
+const reseedRestrictedMessage =
+  "Database reset is restricted to admin maintenance. For local development, use bun run db:seed from the project root.";
 
 const readPositiveIntegerEnv = (name: string, fallback: number) => {
   const value = Number(process.env[name]);
@@ -206,6 +248,13 @@ type SqlExecutionOptions = {
   allowDatabaseSetup?: boolean;
   rollbackDml?: boolean;
 };
+
+export function getPublicQueryExecutionOptions(): SqlExecutionOptions {
+  return {
+    allowAlter: false,
+    rollbackDml: true,
+  };
+}
 
 type ColumnDiff = {
   expected: string[];
@@ -621,9 +670,12 @@ function getErrorMessage(error: unknown) {
   return "SQL execution failed.";
 }
 
-async function runQueryForUser(sql: string, allowAlter = false) {
+async function runQueryForUser(
+  sql: string,
+  options: SqlExecutionOptions = getPublicQueryExecutionOptions(),
+) {
   try {
-    return await runQuery(sql, { allowAlter });
+    return await runQuery(sql, options);
   } catch (error) {
     if (error instanceof TRPCError) {
       throw error;
@@ -1166,9 +1218,7 @@ const queryRouter = t.router({
         allowAlter: z.boolean().optional().default(false),
       }),
     )
-    .mutation(async ({ input }) =>
-      runQueryForUser(input.sql, input.allowAlter),
-    ),
+    .mutation(async ({ input }) => runQueryForUser(input.sql)),
 });
 
 const exerciseIdSchema = z.string().min(1);
@@ -1205,7 +1255,7 @@ async function validateDqlExercise(
   let userResult: QueryResult;
 
   try {
-    userResult = await runQueryForUser(userSql, false);
+    userResult = await runQueryForUser(userSql);
   } catch (error) {
     return {
       passed: false,
@@ -1351,7 +1401,8 @@ const validationRouter = t.router({
 });
 
 const dbRouter = t.router({
-  reseed: t.procedure.mutation(async () => {
+  reseed: t.procedure.mutation(async ({ ctx }) => {
+    assertAdminReseedAuthorized(ctx.request?.headers);
     await reseedDatabase();
     return { status: "ok" as const };
   }),
