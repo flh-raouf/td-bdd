@@ -138,6 +138,83 @@ describe("classifySql", () => {
   it("strips leading comments before classification", () => {
     expect(classifySql("-- comment\nSELECT 1;")).toBe("read");
   });
+
+  it('classifies WITH ... SELECT as "read" (legitimate CTE)', () => {
+    expect(classifySql("WITH cte AS (SELECT 1) SELECT * FROM cte")).toBe(
+      "read",
+    );
+  });
+
+  it('classifies WITH ... DELETE as "dml" (CTE bypass)', () => {
+    expect(
+      classifySql(
+        "WITH target AS (SELECT id FROM t) DELETE FROM t WHERE id IN (SELECT id FROM target)",
+      ),
+    ).toBe("dml");
+  });
+
+  it('classifies WITH ... UPDATE as "dml" (CTE bypass)', () => {
+    expect(
+      classifySql(
+        "WITH target AS (SELECT id FROM t) UPDATE t SET x = 1 WHERE id IN (SELECT id FROM target)",
+      ),
+    ).toBe("dml");
+  });
+
+  it('classifies WITH ... INSERT as "dml" (CTE bypass)', () => {
+    expect(
+      classifySql(
+        "WITH source AS (SELECT * FROM t1) INSERT INTO t2 SELECT * FROM source",
+      ),
+    ).toBe("dml");
+  });
+
+  it('classifies WITH ... REPLACE as "dml" (CTE bypass)', () => {
+    expect(
+      classifySql(
+        "WITH source AS (SELECT * FROM t1) REPLACE INTO t2 SELECT * FROM source",
+      ),
+    ).toBe("dml");
+  });
+
+  it('classifies WITH RECURSIVE ... DELETE as "dml" (CTE bypass)', () => {
+    expect(
+      classifySql(
+        "WITH RECURSIVE cte AS (SELECT 1 UNION ALL SELECT 1) DELETE FROM t",
+      ),
+    ).toBe("dml");
+  });
+
+  it('classifies WITH RECURSIVE ... SELECT as "read" (legitimate recursive CTE)', () => {
+    expect(
+      classifySql(
+        "WITH RECURSIVE cte AS (SELECT 1 UNION ALL SELECT n+1 FROM cte WHERE n < 10) SELECT * FROM cte",
+      ),
+    ).toBe("read");
+  });
+
+  it("handles case variations in WITH clauses", () => {
+    expect(classifySql("with cte as (select 1) delete from t")).toBe("dml");
+    expect(classifySql("With Cte As (Select 1) Update t Set x = 1")).toBe(
+      "dml",
+    );
+    expect(classifySql("WITH cte AS (SELECT 1) SELECT * FROM cte")).toBe(
+      "read",
+    );
+  });
+
+  it("handles whitespace variations in WITH clauses", () => {
+    expect(classifySql("WITH\tcte\tAS\t(SELECT 1)\tDELETE\tFROM t")).toBe(
+      "dml",
+    );
+    expect(classifySql("WITH\ncte\nAS\n(SELECT 1)\nDELETE\nFROM t")).toBe(
+      "dml",
+    );
+  });
+
+  it('classifies EXPLAIN DELETE as "read" (EXPLAIN is safe)', () => {
+    expect(classifySql("EXPLAIN DELETE FROM t")).toBe("read");
+  });
 });
 
 describe("SQL safety policy", () => {

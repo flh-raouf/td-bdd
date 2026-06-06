@@ -523,6 +523,16 @@ export function classifySql(
     });
   }
 
+  if (keyword === "WITH") {
+    const cteDmlKeywords = new Set(["DELETE", "INSERT", "UPDATE", "REPLACE"]);
+    for (const token of tokens.slice(1)) {
+      if (cteDmlKeywords.has(token)) {
+        return "dml";
+      }
+    }
+    return "read";
+  }
+
   if (readOnlyKeywords.has(keyword)) {
     return "read";
   }
