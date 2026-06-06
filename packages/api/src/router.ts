@@ -1144,6 +1144,7 @@ async function runQuery(
   if (sqlKind === "dml" && rollbackDml) {
     const connection = await pool.getConnection();
     try {
+      await connection.query(`USE ${quoteIdentifier(databaseName)}`);
       await connection.beginTransaction();
       const [rows, fields] = await connection.query<
         RowDataPacket[] | ResultSetHeader
@@ -1158,26 +1159,34 @@ async function runQuery(
     }
   }
 
-  const [rows, fields] = await pool.query<RowDataPacket[] | ResultSetHeader>(
-    createUserQueryOptions(sql),
-  );
-  return mapAndLimitQueryResult(rows, fields);
+  const connection = await pool.getConnection();
+  try {
+    await connection.query(`USE ${quoteIdentifier(databaseName)}`);
+    const [rows, fields] = await connection.query<
+      RowDataPacket[] | ResultSetHeader
+    >(createUserQueryOptions(sql));
+    return mapAndLimitQueryResult(rows, fields);
+  } finally {
+    connection.release();
+  }
 }
 
-async function dropAllSchemaObjects() {
-  const [viewRows] = await pool.query<RowDataPacket[]>(
+async function dropAllSchemaObjects(connection: PoolConnection) {
+  const [viewRows] = await connection.query<RowDataPacket[]>(
     `SELECT TABLE_NAME AS name
      FROM INFORMATION_SCHEMA.VIEWS
      WHERE TABLE_SCHEMA = DATABASE()`,
   );
 
-  await pool.query("SET FOREIGN_KEY_CHECKS = 0");
+  await connection.query("SET FOREIGN_KEY_CHECKS = 0");
 
   for (const { name } of viewRows) {
-    await pool.query(`DROP VIEW IF EXISTS ${quoteIdentifier(String(name))}`);
+    await connection.query(
+      `DROP VIEW IF EXISTS ${quoteIdentifier(String(name))}`,
+    );
   }
 
-  const [tableRows] = await pool.query<RowDataPacket[]>(
+  const [tableRows] = await connection.query<RowDataPacket[]>(
     `SELECT TABLE_NAME AS name
      FROM INFORMATION_SCHEMA.TABLES
      WHERE TABLE_SCHEMA = DATABASE()
@@ -1185,18 +1194,31 @@ async function dropAllSchemaObjects() {
   );
 
   for (const { name } of tableRows) {
-    await pool.query(`DROP TABLE IF EXISTS ${quoteIdentifier(String(name))}`);
+    await connection.query(
+      `DROP TABLE IF EXISTS ${quoteIdentifier(String(name))}`,
+    );
   }
-
-  await pool.query("SET FOREIGN_KEY_CHECKS = 1");
 }
 
 async function reseedDatabase() {
-  await dropAllSchemaObjects();
+  const connection = await pool.getConnection();
+  try {
+    await connection.query(
+      `CREATE DATABASE IF NOT EXISTS ${quoteIdentifier(databaseName)}`,
+    );
+    await connection.query(`USE ${quoteIdentifier(databaseName)}`);
+    await dropAllSchemaObjects(connection);
 
-  const statements = await getSeedStatements({ includeDatabaseSetup: false });
-  for (const statement of statements) {
-    await pool.query(statement);
+    const statements = await getSeedStatements({ includeDatabaseSetup: false });
+    for (const statement of statements) {
+      await connection.query(statement);
+    }
+  } finally {
+    try {
+      await connection.query("SET FOREIGN_KEY_CHECKS = 1");
+    } finally {
+      connection.release();
+    }
   }
 
   clearStaticCaches();

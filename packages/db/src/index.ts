@@ -3,11 +3,11 @@ import mysql from "mysql2/promise";
 import * as schema from "./schema";
 
 export const dbConfig = {
-  host: process.env.DB_HOST ?? "localhost",
+  host: process.env.DB_HOST || "localhost",
   port: Number(process.env.DB_PORT ?? 3308),
-  user: process.env.DB_USER ?? "root",
-  password: process.env.DB_PASSWORD ?? "root",
-  database: process.env.DB_NAME ?? "DZTelecom",
+  user: process.env.DB_USER || "root",
+  password: process.env.DB_PASSWORD || "root",
+  database: process.env.DB_NAME || "DZTelecom",
 };
 
 export const pool = mysql.createPool({
