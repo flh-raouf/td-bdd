@@ -9,6 +9,7 @@ import {
   enforceQueryResultLimits,
   generateValidationId,
   getPublicQueryExecutionOptions,
+  getSqlTokens,
   isAdminReseedAuthorized,
   normalizeRow,
   normalizeValue,
@@ -214,6 +215,48 @@ describe("classifySql", () => {
 
   it('classifies EXPLAIN DELETE as "read" (EXPLAIN is safe)', () => {
     expect(classifySql("EXPLAIN DELETE FROM t")).toBe("read");
+  });
+});
+
+describe("getSqlTokens", () => {
+  it("handles mid-token block comments", () => {
+    const tokens = getSqlTokens("SELECT/*hint*/1 FROM t");
+    expect(tokens[0]).toBe("SELECT");
+  });
+
+  it("handles block comments between tokens", () => {
+    const tokens = getSqlTokens("SELECT /*hint*/ 1 FROM t");
+    expect(tokens[0]).toBe("SELECT");
+  });
+
+  it("handles comment within keyword (produces single token)", () => {
+    const tokens = getSqlTokens("SEL/**/ECT 1");
+    expect(tokens[0]).toBe("SEL");
+  });
+
+  it("handles multiple inline comments", () => {
+    const tokens = getSqlTokens("SELECT/*a*//*b*/1 FROM t");
+    expect(tokens[0]).toBe("SELECT");
+  });
+
+  it("handles DELETE with inline comment before FROM", () => {
+    const tokens = getSqlTokens("DELETE/*comment*/FROM t");
+    expect(tokens[0]).toBe("DELETE");
+  });
+
+  it("handles DROP/**/TABLE (comment between tokens)", () => {
+    const tokens = getSqlTokens("DROP/**/TABLE t");
+    expect(tokens[0]).toBe("DROP");
+  });
+
+  it("preserves leading-comment-only stripping", () => {
+    const tokens = getSqlTokens("-- comment\nSELECT 1");
+    expect(tokens[0]).toBe("SELECT");
+  });
+
+  it("handles comment at end of SQL", () => {
+    const tokens = getSqlTokens("SELECT 1 /* trailing */");
+    expect(tokens[0]).toBe("SELECT");
   });
 });
 

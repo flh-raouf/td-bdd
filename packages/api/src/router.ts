@@ -322,6 +322,7 @@ export function stripLeadingComments(sql: string) {
 
 export function getSqlTokens(sql: string) {
   return stripLeadingComments(sql)
+    .replace(/\/\*.*?\*\//g, " ")
     .replace(/;\s*$/, "")
     .split(/\s+/)
     .filter(Boolean)
