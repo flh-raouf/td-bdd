@@ -22,6 +22,7 @@
       "!.agents",
       "!node_modules",
       "!**/dist",
+      "!.local",
       "!.turbo",
       "!bun.lock",
       "!apps/web/src/components/ui/lens.tsx",

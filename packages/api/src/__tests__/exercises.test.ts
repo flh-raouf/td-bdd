@@ -23,7 +23,7 @@ describe("getExercise", () => {
     expect(getExercise("")).toBeNull();
   });
 
-  it("can retrieve all 26 exercises", () => {
+  it("can retrieve all 25 exercises", () => {
     const ids = [
       "1.1",
       "1.2",
@@ -33,7 +33,6 @@ describe("getExercise", () => {
       "1.6",
       "1.7",
       "1.8",
-      "1.9",
       "2.1.1",
       "2.1.2",
       "2.1.3",
@@ -55,14 +54,14 @@ describe("getExercise", () => {
     for (const id of ids) {
       expect(getExercise(id)).not.toBeNull();
     }
-    expect(exercises).toHaveLength(26);
+    expect(exercises).toHaveLength(25);
   });
 });
 
 describe("getExerciseSummaries", () => {
   it("returns summaries for all exercises", () => {
     const summaries = getExerciseSummaries();
-    expect(summaries).toHaveLength(26);
+    expect(summaries).toHaveLength(25);
   });
 
   it("reuses the cached summary collection", () => {
@@ -102,19 +101,19 @@ describe("getExercisesByPart", () => {
     expect(getExercisesByPart()).toBe(getExercisesByPart());
   });
 
-  it("Exercise 1 has 9 exercises", () => {
+  it("Exercise 1 has 8 exercises", () => {
     const groups = getExercisesByPart();
     const ex1 = groups.find(
       (g) => g.part === "Exercise 1 - Database Creation Script",
     );
-    expect(ex1?.exercises).toHaveLength(9);
+    expect(ex1?.exercises).toHaveLength(8);
   });
 });
 
 describe("getNextExerciseId / getPreviousExerciseId", () => {
   it("getNextExerciseId returns next id", () => {
     expect(getNextExerciseId("1.1")).toBe("1.2");
-    expect(getNextExerciseId("1.9")).toBe("2.1.1");
+    expect(getNextExerciseId("1.8")).toBe("2.1.1");
   });
 
   it("getNextExerciseId returns null for last exercise", () => {
@@ -127,7 +126,7 @@ describe("getNextExerciseId / getPreviousExerciseId", () => {
 
   it("getPreviousExerciseId returns previous id", () => {
     expect(getPreviousExerciseId("1.2")).toBe("1.1");
-    expect(getPreviousExerciseId("2.1.1")).toBe("1.9");
+    expect(getPreviousExerciseId("2.1.1")).toBe("1.8");
   });
 
   it("getPreviousExerciseId returns null for first exercise", () => {
@@ -167,18 +166,6 @@ describe("exercise data integrity", () => {
       expect(ex.type).toBe("ddl");
       expect(ex.solutionQueries[0]).toContain("CREATE TABLE");
     }
-  });
-
-  it("Exercise 1.9 has full creation script with all tables", () => {
-    const ex1_9 = getExercise("1.9");
-    expect(ex1_9?.solutionQueries[0]).toContain("CREATE DATABASE");
-    expect(ex1_9?.solutionQueries[0]).toContain("CUSTOMER");
-    expect(ex1_9?.solutionQueries[0]).toContain("SUBSCRIBER");
-    expect(ex1_9?.solutionQueries[0]).toContain("RECHARGE");
-    expect(ex1_9?.solutionQueries[0]).toContain("SERVICE");
-    expect(ex1_9?.solutionQueries[0]).toContain("PLAN");
-    expect(ex1_9?.solutionQueries[0]).toContain("FEATURE");
-    expect(ex1_9?.solutionQueries[0]).toContain("SIGNUP");
   });
 
   it("no duplicate exercise ids", () => {

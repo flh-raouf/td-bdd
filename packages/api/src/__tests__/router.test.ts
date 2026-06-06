@@ -739,16 +739,6 @@ describe("DDL validation disposable-schema isolation", () => {
     expect(result.passed).toBe(true);
   });
 
-  it("passes Part 1 exercise 1.9 (full creation script) in isolation", async () => {
-    const exercise = getExercise("1.9");
-    if (!exercise) throw new Error("Missing exercise 1.9");
-    const result = await validateDdlExercise(
-      exercise,
-      "CREATE DATABASE IF NOT EXISTS DZTelecom;\nUSE DZTelecom;\n\nCREATE TABLE CUSTOMER (customerId INT AUTO_INCREMENT PRIMARY KEY, customerName VARCHAR(150) NOT NULL, address TEXT, email VARCHAR(150) UNIQUE);\n\nCREATE TABLE SUBSCRIBER (phoneNumber VARCHAR(20) PRIMARY KEY, customerId INT NOT NULL, balance DECIMAL(10,2) DEFAULT 0, operatorName VARCHAR(100), lineType VARCHAR(50), lineStatus VARCHAR(50), activationDate DATE, simCode VARCHAR(100), CONSTRAINT fk_subscriber_customer FOREIGN KEY (customerId) REFERENCES CUSTOMER(customerId) ON UPDATE CASCADE ON DELETE CASCADE);\n\nCREATE TABLE RECHARGE (rechargeId INT AUTO_INCREMENT PRIMARY KEY, phoneNumber VARCHAR(20) NOT NULL, amount DECIMAL(10,2) NOT NULL CHECK (amount > 0), rechargeDate DATE NOT NULL, paymentMethod VARCHAR(50), CONSTRAINT fk_recharge_subscriber FOREIGN KEY (phoneNumber) REFERENCES SUBSCRIBER(phoneNumber) ON UPDATE CASCADE ON DELETE CASCADE);\n\nCREATE TABLE SERVICE (serviceId INT AUTO_INCREMENT PRIMARY KEY, serviceName VARCHAR(150) NOT NULL);\n\nCREATE TABLE PLAN (planId INT AUTO_INCREMENT PRIMARY KEY, planName VARCHAR(150) NOT NULL, monthlyRate DECIMAL(10,2) NOT NULL CHECK (monthlyRate >= 0));\n\nCREATE TABLE FEATURE (featureId INT AUTO_INCREMENT PRIMARY KEY, planId INT NOT NULL, featureName VARCHAR(150) NOT NULL, CONSTRAINT fk_feature_plan FOREIGN KEY (planId) REFERENCES PLAN(planId) ON UPDATE CASCADE ON DELETE CASCADE);\n\nCREATE TABLE USES (phoneNumber VARCHAR(20) NOT NULL, serviceId INT NOT NULL, usageDateTime DATETIME NOT NULL, callDuration INT DEFAULT 0, dataBytes FLOAT DEFAULT 0, amount DECIMAL(10,2) DEFAULT 0, PRIMARY KEY (phoneNumber, serviceId, usageDateTime), CONSTRAINT fk_uses_subscriber FOREIGN KEY (phoneNumber) REFERENCES SUBSCRIBER(phoneNumber) ON UPDATE CASCADE ON DELETE CASCADE, CONSTRAINT fk_uses_service FOREIGN KEY (serviceId) REFERENCES SERVICE(serviceId) ON UPDATE CASCADE ON DELETE CASCADE);\n\nCREATE TABLE SIGNUP (phoneNumber VARCHAR(20) NOT NULL, planId INT NOT NULL, startDate DATE NOT NULL, endDate DATE NOT NULL, amount DECIMAL(10,2) DEFAULT 0, PRIMARY KEY (phoneNumber, planId, startDate), CONSTRAINT chk_dates CHECK (startDate < endDate), CONSTRAINT fk_signup_subscriber FOREIGN KEY (phoneNumber) REFERENCES SUBSCRIBER(phoneNumber) ON UPDATE CASCADE ON DELETE CASCADE, CONSTRAINT fk_signup_plan FOREIGN KEY (planId) REFERENCES PLAN(planId) ON UPDATE CASCADE ON DELETE CASCADE);",
-    );
-    expect(result.passed).toBe(true);
-  });
-
   it("rejects Part 1 table creation with wrong column names", async () => {
     const exercise = getExercise("1.1");
     if (!exercise) throw new Error("Missing exercise 1.1");
@@ -851,38 +841,18 @@ describe("DDL validation disposable-schema isolation", () => {
     expect(result.verificationLabel).toContain("columns must match");
   });
 
-  it("rejects weak full creation scripts that only satisfy table and key counts", async () => {
-    const exercise = getExercise("1.9");
-    if (!exercise) throw new Error("Missing exercise 1.9");
-
-    const result = await validateDdlExercise(
-      exercise,
-      `CREATE DATABASE IF NOT EXISTS DZTelecom; USE DZTelecom;
-CREATE TABLE CUSTOMER (a INT PRIMARY KEY, b INT, c INT, d INT);
-CREATE TABLE SERVICE (a INT PRIMARY KEY, b INT);
-CREATE TABLE PLAN (a INT PRIMARY KEY, b INT, c INT);
-CREATE TABLE SUBSCRIBER (phoneNumber VARCHAR(20) PRIMARY KEY, customerId INT NOT NULL, balance INT, operatorName INT, lineType INT, lineStatus INT, activationDate INT, simCode INT, FOREIGN KEY (customerId) REFERENCES CUSTOMER(a));
-CREATE TABLE RECHARGE (rechargeId INT PRIMARY KEY, phoneNumber VARCHAR(20), amount INT, rechargeDate INT, paymentMethod INT, FOREIGN KEY (phoneNumber) REFERENCES SUBSCRIBER(phoneNumber));
-CREATE TABLE FEATURE (featureId INT PRIMARY KEY, planId INT, featureName INT, FOREIGN KEY (planId) REFERENCES PLAN(a));
-CREATE TABLE USES (phoneNumber VARCHAR(20) NOT NULL, serviceId INT NOT NULL, usageDateTime DATETIME NOT NULL, callDuration INT, dataBytes FLOAT, amount DECIMAL(10,2), PRIMARY KEY (phoneNumber, serviceId, usageDateTime), FOREIGN KEY (phoneNumber) REFERENCES SUBSCRIBER(phoneNumber), FOREIGN KEY (serviceId) REFERENCES SERVICE(a));
-CREATE TABLE SIGNUP (phoneNumber VARCHAR(20) NOT NULL, planId INT NOT NULL, startDate DATE NOT NULL, endDate DATE NOT NULL, amount DECIMAL(10,2), PRIMARY KEY (phoneNumber, planId, startDate), FOREIGN KEY (phoneNumber) REFERENCES SUBSCRIBER(phoneNumber), FOREIGN KEY (planId) REFERENCES PLAN(a));`,
-    );
-
-    expect(result.passed).toBe(false);
-  });
-
   it("hides disposable schema names from missing table errors", async () => {
-    const exercise = getExercise("1.9");
-    if (!exercise) throw new Error("Missing exercise 1.9");
+    const exercise = getExercise("1.2");
+    if (!exercise) throw new Error("Missing exercise 1.2");
 
     const result = await validateDdlExercise(
       exercise,
-      "CREATE TABLE RECHARGE (rechargeId INT AUTO_INCREMENT PRIMARY KEY, phoneNumber VARCHAR(20) NOT NULL, amount DECIMAL(10,2) NOT NULL CHECK (amount > 0), rechargeDate DATE NOT NULL, paymentMethod VARCHAR(50), FOREIGN KEY (phoneNumber) REFERENCES SUBSCRIBER(phoneNumber) ON UPDATE CASCADE ON DELETE CASCADE);",
+      "CREATE TABLE SUBSCRIBER (phoneNumber VARCHAR(20) PRIMARY KEY, customerId INT NOT NULL, balance DECIMAL(10,2) DEFAULT 0, operatorName VARCHAR(100), lineType VARCHAR(50), lineStatus VARCHAR(50), activationDate DATE, simCode VARCHAR(100), FOREIGN KEY (customerId) REFERENCES MISSING(customerId));",
     );
 
     expect(result.passed).toBe(false);
     expect(result.diff?.sqlError).toBe(
-      "Table 'SUBSCRIBER' does not exist. Create it first, check the table name, or place your CREATE TABLE statements in dependency order.",
+      "Table 'MISSING' does not exist. Create it first, check the table name, or place your CREATE TABLE statements in dependency order.",
     );
     expect(result.diff?.sqlError).not.toContain("bdd_ddl_");
   });

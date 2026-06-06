@@ -51,9 +51,6 @@ const summarizeExercise = ({
   allowAlter,
 });
 
-const baseCreateDatabasePrefix =
-  "CREATE DATABASE IF NOT EXISTS DZTelecom;\nUSE DZTelecom;";
-
 const customerTableSql = `CREATE TABLE CUSTOMER (
     customerId INT AUTO_INCREMENT PRIMARY KEY,
     customerName VARCHAR(150) NOT NULL,
@@ -151,18 +148,6 @@ const signupTableSql = `CREATE TABLE SIGNUP (
         ON UPDATE CASCADE
         ON DELETE CASCADE
 );`;
-
-const fullCreationScript = [
-  baseCreateDatabasePrefix,
-  customerTableSql,
-  subscriberTableSql,
-  rechargeTableSql,
-  serviceTableSql,
-  usesTableSql,
-  planTableSql,
-  featureTableSql,
-  signupTableSql,
-].join("\n\n");
 
 const tableExistsVerification = (tableName: string): VerificationQuery => ({
   sql: `SELECT TABLE_NAME AS tableName
@@ -768,17 +753,6 @@ const signupTableSchema: ExpectedTableSchema = {
   ],
 };
 
-const exerciseOneTableSchemas = [
-  customerTableSchema,
-  subscriberTableSchema,
-  rechargeTableSchema,
-  serviceTableSchema,
-  usesTableSchema,
-  planTableSchema,
-  featureTableSchema,
-  signupTableSchema,
-];
-
 export const exercises = [
   {
     id: "1.1",
@@ -916,44 +890,9 @@ export const exercises = [
     initialCode: "CREATE TABLE SIGNUP (\n  \n);",
   },
   {
-    id: "1.9",
-    part: "Exercise 1 - Database Creation Script",
-    order: 9,
-    title: "Full database creation script",
-    description:
-      "Consider the Entity-Relationship (ER) schema provided above, and write the SQL creation script required to generate the database. Your script must include the definition of all tables, primary keys, foreign keys, and any necessary constraints.",
-    type: "ddl",
-    hints: [
-      "Start with tables that have no foreign keys: CUSTOMER, SERVICE, and PLAN.",
-      "Then create dependent tables in an order that respects references: SUBSCRIBER, RECHARGE, FEATURE, USES, and SIGNUP.",
-      "Check every relationship from the ER diagram: primary keys, foreign keys, composite keys, and constraints such as positive amounts and valid date ranges.",
-    ],
-    solutionQueries: [fullCreationScript],
-    verificationQueries: [
-      {
-        sql: `SELECT GROUP_CONCAT(TABLE_NAME ORDER BY TABLE_NAME SEPARATOR ',') AS tableNames
-FROM INFORMATION_SCHEMA.TABLES
-WHERE TABLE_SCHEMA = DATABASE()
-  AND TABLE_TYPE = 'BASE TABLE'`,
-        expectedOutput: {
-          columns: ["tableNames"],
-          rows: [
-            {
-              tableNames:
-                "CUSTOMER,FEATURE,PLAN,RECHARGE,SERVICE,SIGNUP,SUBSCRIBER,USES",
-            },
-          ],
-        },
-        label: "The script must create exactly the 8 expected tables",
-      },
-      ...exerciseOneTableSchemas.flatMap(tableSchemaVerifications),
-    ],
-    initialCode: "CREATE DATABASE IF NOT EXISTS DZTelecom;\nUSE DZTelecom;\n\n",
-  },
-  {
     id: "2.1.1",
     part: "Exercise 2 - Part 1",
-    order: 10,
+    order: 9,
     title: "Active subscribers",
     description:
       "Write an SQL query to display the phone number, customer name, and operator of all subscribers whose line status is 'Active'.",
@@ -978,7 +917,7 @@ WHERE s.lineStatus = 'Active'`,
   {
     id: "2.1.2",
     part: "Exercise 2 - Part 1",
-    order: 11,
+    order: 10,
     title: "Highest monthly rate plan",
     description:
       "Write an SQL query to find the plan with the highest monthly rate. Display the plan name and monthly rate.",
@@ -999,7 +938,7 @@ WHERE monthlyRate = (SELECT MAX(monthlyRate) FROM PLAN)`,
   {
     id: "2.1.3",
     part: "Exercise 2 - Part 1",
-    order: 12,
+    order: 11,
     title: "Subscriber count per operator",
     description:
       "Write an SQL query to count the number of subscribers for each operator. Display the operator name and the count.",
@@ -1023,7 +962,7 @@ GROUP BY operatorName`,
   {
     id: "2.1.4",
     part: "Exercise 2 - Part 1",
-    order: 13,
+    order: 12,
     title: "Services never used",
     description:
       "Write an SQL query to list all services that have never been used. Display the service ID and service name.",
@@ -1047,7 +986,7 @@ WHERE serviceId NOT IN (SELECT DISTINCT serviceId FROM USES)`,
   {
     id: "2.1.5",
     part: "Exercise 2 - Part 1",
-    order: 14,
+    order: 13,
     title: "Customers with no mobile lines",
     description:
       "Write an SQL query to find customers who do not have any mobile lines. Display the customer name.",
@@ -1075,7 +1014,7 @@ WHERE s.phoneNumber IS NULL`,
   {
     id: "2.2.1",
     part: "Exercise 2 - Part 2",
-    order: 15,
+    order: 14,
     title: "Subscribers with at least two plans",
     description:
       "Write an SQL query to find subscribers who have signed up for at least two different plans. Display the customer name, phone number, and the number of plans they have signed up for.",
@@ -1105,7 +1044,7 @@ HAVING nombrePlan >= 2`,
   {
     id: "2.2.2",
     part: "Exercise 2 - Part 2",
-    order: 16,
+    order: 15,
     title: "Service/operator usage stats",
     description: `Write an SQL query to calculate for each service and each operator:
 - Total call duration in hours (callDuration is in minutes)
@@ -1135,7 +1074,7 @@ GROUP BY srv.serviceId, s.operatorName`,
   {
     id: "2.2.3",
     part: "Exercise 2 - Part 2",
-    order: 17,
+    order: 16,
     title: "Subscribers with no active signup",
     description:
       "Write an SQL query to find subscribers who do not have any active signup (no signup record with endDate = NULL). Display the phone number and customer name.",
@@ -1169,7 +1108,7 @@ WHERE NOT EXISTS (
   {
     id: "2.2.4",
     part: "Exercise 2 - Part 2",
-    order: 18,
+    order: 17,
     title: "Plan feature counts",
     description:
       "Write an SQL query to list all plans along with the count of features they offer. Display the plan name and number of features, sorted from most features to least.",
@@ -1197,7 +1136,7 @@ ORDER BY NumberFeature DESC`,
   {
     id: "2.3.1",
     part: "Exercise 2 - Part 3",
-    order: 19,
+    order: 18,
     title: "Subscribers who used every service",
     description:
       "Write an SQL query to find subscribers who have used every available service at least once. Display the phone number and customer name.",
@@ -1231,7 +1170,7 @@ WHERE (
   {
     id: "2.3.2",
     part: "Exercise 2 - Part 3",
-    order: 20,
+    order: 19,
     title: "Highest revenue service",
     description:
       "Write an SQL query to determine which service has generated the highest total revenue. Display the service ID, service name, and total revenue.",
@@ -1270,7 +1209,7 @@ HAVING SUM(u.amount) >= ALL (
   {
     id: "2.3.3",
     part: "Exercise 2 - Part 3",
-    order: 21,
+    order: 20,
     title: "Subscriber with max call duration",
     description:
       "Write an SQL query to find the subscriber whose total call duration exceeds that of all other subscribers. Display the customer name, phone number, and total call duration.",
@@ -1311,7 +1250,7 @@ HAVING totalCallDuration >= ALL (
   {
     id: "2.3.4",
     part: "Exercise 2 - Part 3",
-    order: 22,
+    order: 21,
     title: "Above-average data consumers",
     description:
       "Write an SQL query to find subscribers whose total data consumption is greater than the average data consumption across all subscribers. Display the phone number, customer name, and total data consumed.",
@@ -1342,7 +1281,7 @@ HAVING SUM(u.dataBytes) > (
   {
     id: "2.3.5",
     part: "Exercise 2 - Part 3",
-    order: 23,
+    order: 22,
     title: "Monthly recharge stats for 2025",
     description:
       "Write an SQL query to show, for each month of the year 2025, the number of recharges performed and the total amount recharged. Display the month number, number of recharges, and total amount, ordered by month.",
@@ -1372,7 +1311,7 @@ ORDER BY months.monthNumber`,
   {
     id: "2.4.1",
     part: "Exercise 2 - Part 4",
-    order: 24,
+    order: 23,
     title: "Add isCall field to USES",
     description: `Add an isCall field to the USES table.
 
@@ -1437,7 +1376,7 @@ FROM USES`,
   {
     id: "2.4.2",
     part: "Exercise 2 - Part 4",
-    order: 25,
+    order: 24,
     title: "Create activeSubscribers view",
     description: `Write an SQL statement to create a view called activeSubscribers that displays all active subscribers (lineStatus = 'Active'). The view should include:
 
@@ -1489,7 +1428,7 @@ WHERE TABLE_SCHEMA = DATABASE()
   {
     id: "2.4.3",
     part: "Exercise 2 - Part 4",
-    order: 26,
+    order: 25,
     title: "Add UNIQUE constraint on simCode",
     description:
       "Write an SQL statement to add a unique constraint on the simCode column in the SUBSCRIBER table to ensure no two subscribers have the same SIM card code.",

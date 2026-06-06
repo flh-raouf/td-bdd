@@ -16,7 +16,8 @@ createHTTPServer({
   middleware: (request, response, next) => {
     response.setHeader("Access-Control-Allow-Origin", webOrigin);
     response.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type, Cookie");
+    response.setHeader("Access-Control-Allow-Credentials", "true");
 
     if (request.method === "OPTIONS") {
       response.statusCode = 204;

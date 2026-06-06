@@ -21,14 +21,14 @@ export const tourSteps: TourStep[] = [
     target: "[data-tour=welcome]",
     title: "Welcome to BDD Revision!",
     content:
-      "Practice SQL exercises from the DZTelecom database. 26 exercises across 5 parts, with hints, solutions, and instant validation. Let's take a quick tour.",
+      "Practice SQL exercises from the DZTelecom database. 25 exercises across 5 parts, with hints, solutions, and instant validation. Let's take a quick tour.",
     position: "bottom",
   },
   {
     target: "[data-tour=sidebar]",
     title: "Exercise Navigation",
     content:
-      "Browse all 26 exercises grouped by part. Completed exercises show a green checkmark. The progress bar tracks your overall completion.",
+      "Browse all 25 exercises grouped by part. Completed exercises show a green checkmark. The progress bar tracks your overall completion.",
     position: "right",
   },
   {

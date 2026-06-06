@@ -72,6 +72,8 @@ export function ExerciseWorkspace({ exerciseId }: { exerciseId: string }) {
     verificationLabel?: string;
   } | null>(null);
 
+  const exerciseEventMutation = trpc.analytics.exerciseEvent.useMutation();
+
   const ddlJobStatusQuery = trpc.validation.jobStatus.useQuery(ddlJobId ?? "", {
     enabled: !!ddlJobId,
     refetchInterval: 1000,
@@ -231,8 +233,14 @@ export function ExerciseWorkspace({ exerciseId }: { exerciseId: string }) {
           solutionQueries={exercise.solutionQueries}
           visibleHints={visibleHints}
           showSolution={showSolution}
-          onHintRevealed={() => markHintUsed(exerciseId)}
-          onSolutionRevealed={() => markSolutionRevealed(exerciseId)}
+          onHintRevealed={() => {
+            markHintUsed(exerciseId);
+            exerciseEventMutation.mutate({ exerciseId, event: "hint" });
+          }}
+          onSolutionRevealed={() => {
+            markSolutionRevealed(exerciseId);
+            exerciseEventMutation.mutate({ exerciseId, event: "solution" });
+          }}
           onVisibleHintsChange={handleVisibleHintsChange}
           onShowSolutionChange={handleShowSolutionChange}
           onSchemaModalClose={() => {

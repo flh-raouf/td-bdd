@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Local-only web app for practicing SQL exercises from the BDD (Databases) module. 26 exercises across 5 parts covering DDL and DQL against the DZTelecom telecom database.
+Local-only web app for practicing SQL exercises from the BDD (Databases) module. 25 exercises across 5 parts covering DDL and DQL against the DZTelecom telecom database.
 
 ## Tech Stack
 
@@ -36,7 +36,7 @@ When writing or reviewing React/TypeScript code in this project, **always** load
 - All DB access goes through `@bdd-revision/db` (pool, Drizzle instance, seed helpers). Never create a second mysql2 connection.
 - The usage-events table is named USES, so students do not need backticks for it.
 - API procedures are in `packages/api/src/router.ts`. Validate user SQL with `classifySql()` and `runQuery()`.
-- Exercise definitions in `packages/api/src/exercises.ts` — 26 entries with hints, solutions, DDL verification queries.
+- Exercise definitions in `packages/api/src/exercises.ts` — 25 entries with hints, solutions, DDL verification queries.
 - Frontend state shared via React Context (`ProgressProvider` in `use-progress.ts`). Do not duplicate localStorage reads.
 - TanStack Router uses code-based routing — routes defined manually, tree assembled in `routeTree.gen.ts`.
 

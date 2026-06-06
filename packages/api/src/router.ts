@@ -1,5 +1,5 @@
 import { randomUUID, timingSafeEqual } from "node:crypto";
-import type { IncomingMessage } from "node:http";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { dbConfig, getSeedStatements, pool } from "@bdd-revision/db";
 import { initTRPC, TRPCError } from "@trpc/server";
 import type {
@@ -9,6 +9,15 @@ import type {
   RowDataPacket,
 } from "mysql2/promise";
 import { z } from "zod";
+import {
+  createAdminSession,
+  deleteAdminSession,
+  getAdminStats,
+  isAdminSessionValid,
+  recordExerciseEvent,
+  recordVisit,
+  verifyAdminPassword,
+} from "./admin-store";
 import {
   type Exercise,
   type ExpectedOutput,
@@ -25,10 +34,17 @@ import { consumeRateLimit, rateLimitWindowMs } from "./rate-limit";
 
 type Context = {
   request?: IncomingMessage;
+  response?: ServerResponse;
 };
 
-export function createContext({ req }: { req: IncomingMessage }): Context {
-  return { request: req };
+export function createContext({
+  req,
+  res,
+}: {
+  req: IncomingMessage;
+  res?: ServerResponse;
+}): Context {
+  return { request: req, response: res };
 }
 
 const t = initTRPC.context<Context>().create();
@@ -118,8 +134,76 @@ const databaseName = dbConfig.database;
 const erDiagramPath = "/assets/telecomdz-er-schema-uses.svg";
 const adminReseedHeaderName = "x-bdd-admin-token";
 const adminReseedToken = process.env.DB_RESEED_TOKEN;
+const adminSessionCookieName = "bdd_admin_session";
 const reseedRestrictedMessage =
   "Database reset is restricted to admin maintenance. For local development, use bun run db:seed from the project root.";
+
+function parseCookies(cookieHeader: string | string[] | undefined) {
+  const header = Array.isArray(cookieHeader)
+    ? cookieHeader.join(";")
+    : cookieHeader;
+  const cookies = new Map<string, string>();
+
+  for (const segment of header?.split(";") ?? []) {
+    const separatorIndex = segment.indexOf("=");
+    if (separatorIndex === -1) continue;
+
+    const name = segment.slice(0, separatorIndex).trim();
+    const value = segment.slice(separatorIndex + 1).trim();
+    if (name) {
+      cookies.set(name, decodeURIComponent(value));
+    }
+  }
+
+  return cookies;
+}
+
+function getAdminSessionToken(request: IncomingMessage | undefined) {
+  return parseCookies(request?.headers.cookie).get(adminSessionCookieName);
+}
+
+function appendSetCookie(response: ServerResponse | undefined, value: string) {
+  if (!response) return;
+
+  const existing = response.getHeader("Set-Cookie");
+  const next = Array.isArray(existing)
+    ? [...existing, value]
+    : existing
+      ? [String(existing), value]
+      : value;
+  response.setHeader("Set-Cookie", next);
+}
+
+function setAdminSessionCookie(
+  response: ServerResponse | undefined,
+  token: string,
+) {
+  appendSetCookie(
+    response,
+    `${adminSessionCookieName}=${encodeURIComponent(
+      token,
+    )}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${60 * 60 * 12}`,
+  );
+}
+
+function clearAdminSessionCookie(response: ServerResponse | undefined) {
+  appendSetCookie(
+    response,
+    `${adminSessionCookieName}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
+  );
+}
+
+const adminProcedure = t.procedure.use(async ({ ctx, next }) => {
+  const token = getAdminSessionToken(ctx.request);
+  if (!(await isAdminSessionValid(token))) {
+    throw new TRPCError({
+      code: "UNAUTHORIZED",
+      message: "Admin login required.",
+    });
+  }
+
+  return next();
+});
 
 function shouldQueueDdlValidation() {
   return process.env.DDL_VALIDATION_MODE === "async";
@@ -1495,6 +1579,10 @@ const validationRouter = t.router({
       if (exercise.type === "ddl") {
         if (!shouldQueueDdlValidation()) {
           const result = await validateDdlExercise(exercise, input.userSql);
+          await recordExerciseEvent(
+            input.exerciseId,
+            result.passed ? "submit_correct" : "submit_incorrect",
+          );
           recordHistogram(
             "bdd.validation.duration",
             performance.now() - start,
@@ -1520,6 +1608,10 @@ const validationRouter = t.router({
       }
 
       const result = await validateDqlExercise(exercise, input.userSql);
+      await recordExerciseEvent(
+        input.exerciseId,
+        result.passed ? "submit_correct" : "submit_incorrect",
+      );
       recordHistogram("bdd.validation.duration", performance.now() - start, {
         mode: "dql",
         passed: String(result.passed),
@@ -1544,6 +1636,58 @@ const validationRouter = t.router({
 const dbRouter = t.router({
   reseed: t.procedure.mutation(async ({ ctx }) => {
     assertAdminReseedAuthorized(ctx.request?.headers);
+    await reseedDatabase();
+    return { status: "ok" as const };
+  }),
+});
+
+const analyticsRouter = t.router({
+  visit: t.procedure.mutation(async ({ ctx }) => {
+    await recordVisit(getClientIp(ctx.request));
+    return { status: "ok" as const };
+  }),
+
+  exerciseEvent: t.procedure
+    .input(
+      z.object({
+        exerciseId: exerciseIdSchema,
+        event: z.enum(["hint", "solution"]),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      await recordExerciseEvent(input.exerciseId, input.event);
+      return { status: "ok" as const };
+    }),
+});
+
+const adminRouter = t.router({
+  login: t.procedure
+    .input(z.object({ password: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      if (!(await verifyAdminPassword(input.password))) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Invalid admin password.",
+        });
+      }
+
+      setAdminSessionCookie(ctx.response, await createAdminSession());
+      return { status: "ok" as const };
+    }),
+
+  logout: t.procedure.mutation(async ({ ctx }) => {
+    await deleteAdminSession(getAdminSessionToken(ctx.request));
+    clearAdminSessionCookie(ctx.response);
+    return { status: "ok" as const };
+  }),
+
+  me: t.procedure.query(async ({ ctx }) => ({
+    authenticated: await isAdminSessionValid(getAdminSessionToken(ctx.request)),
+  })),
+
+  stats: adminProcedure.query(() => getAdminStats()),
+
+  reseed: adminProcedure.mutation(async () => {
     await reseedDatabase();
     return { status: "ok" as const };
   }),
@@ -1589,6 +1733,8 @@ export const appRouter = t.router({
 
   metrics: t.procedure.query(() => getMetrics()),
 
+  admin: adminRouter,
+  analytics: analyticsRouter,
   db: dbRouter,
   exercises: exercisesRouter,
   schema: schemaRouter,

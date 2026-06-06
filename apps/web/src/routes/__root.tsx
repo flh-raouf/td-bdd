@@ -1,5 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createRootRoute, Outlet } from "@tanstack/react-router";
+import {
+  createRootRoute,
+  Outlet,
+  useRouterState,
+} from "@tanstack/react-router";
 import { httpBatchLink } from "@trpc/client";
 import { useState } from "react";
 import { RouteError } from "@/components/route-error";
@@ -15,9 +19,14 @@ const apiUrl = import.meta.env.VITE_API_URL ?? "/trpc";
 
 function RootInner() {
   const { start } = useTour();
+  const currentPath = useRouterState({ select: (s) => s.location.pathname });
+  const visitMutation = trpc.analytics.visit.useMutation();
+  const isAdminRoute = currentPath === "/admin";
 
   useMountEffect(() => {
-    if (shouldAutoStartTour()) {
+    visitMutation.mutate();
+
+    if (!isAdminRoute && shouldAutoStartTour()) {
       const timer = setTimeout(start, 1200);
       return () => clearTimeout(timer);
     }
@@ -45,7 +54,13 @@ export function RootComponent() {
   );
   const [trpcClient] = useState(() =>
     trpc.createClient({
-      links: [httpBatchLink({ url: apiUrl })],
+      links: [
+        httpBatchLink({
+          url: apiUrl,
+          fetch: (url, options) =>
+            fetch(url, { ...options, credentials: "include" }),
+        }),
+      ],
     }),
   );
 
