@@ -1235,6 +1235,13 @@ const exerciseOneDependencies: Record<string, string[]> = {
   "1.8": ["1.1", "1.2", "1.6"],
 };
 
+async function selectConnectionDatabase(
+  connection: PoolConnection,
+  database: string,
+) {
+  await connection.changeUser({ database });
+}
+
 export async function validateDdlExercise(
   exercise: Exercise,
   userSql: string,
@@ -1247,7 +1254,7 @@ export async function validateDdlExercise(
     await connection.query(
       `CREATE DATABASE IF NOT EXISTS ${quoteIdentifier(disposableDbName)}`,
     );
-    await connection.query(`USE ${quoteIdentifier(disposableDbName)}`);
+    await selectConnectionDatabase(connection, disposableDbName);
 
     if (exercise.id.startsWith("1.")) {
       for (const dependencyId of exerciseOneDependencies[exercise.id] ?? []) {
@@ -1269,6 +1276,7 @@ export async function validateDdlExercise(
         includeDatabaseSetup: false,
       });
       for (const statement of seedStatements) {
+        await selectConnectionDatabase(connection, disposableDbName);
         await connection.execute(statement);
       }
     }
@@ -1278,12 +1286,14 @@ export async function validateDdlExercise(
       allowAlter: true,
       allowCreateTable: true,
       allowDatabaseSetup: true,
-      rollbackDml: true,
+      rollbackDml: false,
+      databaseName: disposableDbName,
     });
 
     for (const verificationQuery of exercise.verificationQueries ?? []) {
       if (!verificationQuery.expectedOutput) continue;
 
+      await selectConnectionDatabase(connection, disposableDbName);
       const [rows, fields] = await connection.query<RowDataPacket[]>(
         createUserQueryOptions(verificationQuery.sql),
       );
@@ -1318,6 +1328,11 @@ export async function validateDdlExercise(
     };
   } finally {
     try {
+      await selectConnectionDatabase(connection, databaseName);
+    } catch {
+      // Connection can still be released even if USE fails
+    }
+    try {
       await connection.query(
         `DROP DATABASE IF EXISTS ${quoteIdentifier(disposableDbName)}`,
       );
@@ -1326,11 +1341,6 @@ export async function validateDdlExercise(
         `Failed to drop disposable schema "${disposableDbName}":`,
         cleanupError,
       );
-    }
-    try {
-      await connection.query(`USE ${quoteIdentifier(databaseName)}`);
-    } catch {
-      // Connection can still be released even if USE fails
     }
     connection.release();
   }
@@ -1383,7 +1393,7 @@ async function runQueryOnConnection(
 async function runStatementsOnConnection(
   connection: PoolConnection,
   sql: string,
-  options: SqlExecutionOptions = {},
+  options: SqlExecutionOptions & { databaseName?: string } = {},
 ) {
   const statements = splitSqlStatements(sql);
 
@@ -1396,6 +1406,9 @@ async function runStatementsOnConnection(
 
   let result: QueryResult = { columns: [], rows: [] };
   for (const statement of statements) {
+    if (options.databaseName) {
+      await selectConnectionDatabase(connection, options.databaseName);
+    }
     result = await runQueryOnConnection(connection, statement, options);
   }
 

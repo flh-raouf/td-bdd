@@ -895,6 +895,28 @@ describe("DDL validation disposable-schema isolation", () => {
     expect(hasIsCall).toBe(false);
   });
 
+  it("validates Part 4 DDL exercise (2.4.1 isCall) with the displayed solution", async () => {
+    const exercise = getExercise("2.4.1");
+    if (!exercise) throw new Error("Missing exercise 2.4.1");
+
+    const result = await validateDdlExercise(
+      exercise,
+      `ALTER TABLE USES ADD COLUMN isCall BOOLEAN NULL;
+UPDATE USES
+SET isCall = CASE
+  WHEN serviceId = (
+    SELECT serviceId
+    FROM SERVICE
+    WHERE serviceName = 'Appel National'
+  ) THEN TRUE
+  ELSE FALSE
+END;
+ALTER TABLE USES MODIFY COLUMN isCall BOOLEAN NOT NULL;`,
+    );
+
+    expect(result.passed).toBe(true);
+  });
+
   it("handles concurrent DDL submissions without cross-contamination", async () => {
     const exercise = getExercise("1.1");
     if (!exercise) throw new Error("Missing exercise 1.1");
