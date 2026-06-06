@@ -869,7 +869,16 @@ export function normalizeValue(value: unknown) {
   }
 
   if (isNumericLike(value)) {
-    return Number(value).toString();
+    const original = String(value).trim();
+    const normalized = Number(value).toString();
+    if (
+      !original.includes(".") &&
+      !/e/i.test(original) &&
+      normalized !== original
+    ) {
+      return original;
+    }
+    return normalized;
   }
 
   if (value === null || value === undefined) {

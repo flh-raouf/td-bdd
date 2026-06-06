@@ -559,6 +559,10 @@ describe("normalizeValue", () => {
   it("does not treat zero-prefixed strings as numeric", () => {
     expect(normalizeValue("0123")).toBe("0123");
   });
+
+  it("preserves large integers that lose precision as Number", () => {
+    expect(normalizeValue("9223372036854775807")).toBe("9223372036854775807");
+  });
 });
 
 describe("normalizeRow", () => {
