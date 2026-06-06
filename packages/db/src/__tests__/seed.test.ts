@@ -1,5 +1,12 @@
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { splitStatements, stripComments } from "../seed";
+import { findSeedSqlFilePath, splitStatements, stripComments } from "../seed";
+
+const repoRoot = dirname(fileURLToPath(import.meta.url)).replace(
+  /packages\/db\/src\/__tests__$/,
+  "",
+);
 
 describe("stripComments", () => {
   it("removes lines starting with --", () => {
@@ -58,5 +65,14 @@ describe("splitStatements", () => {
       "CREATE TABLE t (\n  id INT,\n  name VARCHAR(100)\n)",
       "SELECT * FROM t",
     ]);
+  });
+});
+
+describe("findSeedSqlFilePath", () => {
+  it("finds the seed SQL file by walking upward", () => {
+    const nestedStartDir = `${repoRoot}packages/db/src/__tests__`;
+    expect(findSeedSqlFilePath([nestedStartDir])).toBe(
+      `${repoRoot}TelecomDZ_schema_data.sql`,
+    );
   });
 });

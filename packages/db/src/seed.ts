@@ -1,10 +1,30 @@
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, join, parse } from "node:path";
 import { fileURLToPath } from "node:url";
 import { pool } from "./index";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const sqlFilePath = join(__dirname, "../../../TelecomDZ_schema_data.sql");
+const seedFileName = "TelecomDZ_schema_data.sql";
+
+export function findSeedSqlFilePath(startDirs = [__dirname, process.cwd()]) {
+  for (const startDir of startDirs) {
+    let currentDir = startDir;
+    const rootDir = parse(currentDir).root;
+
+    while (true) {
+      const candidate = join(currentDir, seedFileName);
+      if (existsSync(candidate)) {
+        return candidate;
+      }
+
+      if (currentDir === rootDir) break;
+      currentDir = dirname(currentDir);
+    }
+  }
+
+  throw new Error(`Could not find ${seedFileName}`);
+}
 
 export const stripComments = (sql: string) =>
   sql
@@ -22,7 +42,7 @@ export async function getSeedStatements(options?: {
   includeDatabaseSetup?: boolean;
 }) {
   const includeDatabaseSetup = options?.includeDatabaseSetup ?? true;
-  const sql = await readFile(sqlFilePath, "utf8");
+  const sql = await readFile(findSeedSqlFilePath(), "utf8");
   const statements = splitStatements(sql);
 
   if (includeDatabaseSetup) {
