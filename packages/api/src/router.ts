@@ -189,6 +189,7 @@ const readOnlyKeywords = new Set([
   "WITH",
 ]);
 const dmlKeywords = new Set(["INSERT", "UPDATE", "DELETE"]);
+const cteDmlKeywords = new Set(["DELETE", "INSERT", "UPDATE", "REPLACE"]);
 const schemaChangeKeywords = new Set(["ALTER", "CREATE"]);
 const allowedCreateTargets = new Set(["VIEW"]);
 
@@ -525,7 +526,6 @@ export function classifySql(
   }
 
   if (keyword === "WITH") {
-    const cteDmlKeywords = new Set(["DELETE", "INSERT", "UPDATE", "REPLACE"]);
     for (const token of tokens.slice(1)) {
       if (cteDmlKeywords.has(token)) {
         return "dml";
